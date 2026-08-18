@@ -1,5 +1,24 @@
 <!doctype html>
-<html lang="en">
+<!--
+  MADA Agent — the whole preview in one file.
+
+  Routes live in the hash and are mirrored onto <html data-view>, which is
+  what every scoped style block below keys off:
+
+    #/          gallery          concept picker
+    #/demo-1    companion        agent flies out of the launcher as a modal
+    #/demo-2    drawer           agent slides in and pushes the board aside
+    #/agent     agent            MADA itself — chat, voice, history, scope
+
+  Both demos share one dashboard; only the CSS decides whether the agent
+  arrives as a modal or a drawer. The agent still runs in an iframe, which
+  now points back at this same file at #/agent — so it keeps its own
+  document, and the demos keep their isolation from it.
+
+  Demo 2's drawer is narrower than demo 1's modal, so it frames the agent
+  with ?layout=compact, which the agent reads off its own query string.
+-->
+<html lang="en" data-view="gallery">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,111 +26,4618 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="concepts.css" />
+
+    <style>
+      /* ================================================================
+         Shared base
+         ================================================================ */
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      /*
+       * The wrapper is layout-transparent, so each view's own root box sits
+       * directly in the body exactly as it did back when the view was its
+       * own page — percentage heights included.
+       */
+      .view {
+        display: contents;
+      }
+
+      /* Only the routed view is in the document's flow. */
+      .view[hidden] {
+        display: none !important;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* ================================================================
+         Gallery view — the concept picker
+         ================================================================ */
+
+      html[data-view="gallery"] {
+        --bg: #000000;
+        --brand: #5c51ff;
+        --brand-dark: #1a1748;
+        --brand-deep: #12102e;
+        --brand-mid: #2e2878;
+        --brand-glow: #8f85ff;
+        --brand-soft: #6e62ff;
+
+        --ink: #f4f4f5;
+        --ink-dim: rgba(255, 255, 255, 0.52);
+        --ink-faint: rgba(255, 255, 255, 0.34);
+        --hairline: rgba(255, 255, 255, 0.09);
+
+        --ease: cubic-bezier(0.22, 1, 0.36, 1);
+        --shell-width: min(64rem, 100%);
+
+        background: var(--bg);
+      }
+
+      html[data-view="gallery"] body {
+        min-height: 100dvh;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ---------- Field: the light the whole page sits in ---------- */
+
+      /*
+       * The whole field fades in as one atmosphere. Load motion lives here and
+       * nowhere else, so the layers below are free to transition opacity and
+       * transform on hover without an animation fill-state overriding them.
+       */
+      [data-view="gallery"] .field {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+        background: var(--bg);
+        opacity: 0;
+        animation: field-in 1.7s var(--ease) 0.15s forwards;
+      }
+
+      /*
+       * Same radial recipe as the chat glow in the demo, anchored low so the
+       * page reads as one continuous light source with the tiles above it.
+       */
+      [data-view="gallery"] .field__ambient {
+        position: absolute;
+        left: 50%;
+        bottom: -34vh;
+        width: min(120rem, 190%);
+        height: 92vh;
+        transform: translateX(-50%);
+        opacity: 0.42;
+        background: radial-gradient(
+          ellipse 62% 60% at 50% 50%,
+          color-mix(in srgb, var(--brand-mid) 78%, var(--brand)) 0%,
+          color-mix(in srgb, var(--brand-dark) 72%, transparent) 22%,
+          color-mix(in srgb, var(--brand-deep) 48%, transparent) 42%,
+          transparent 82%
+        );
+        filter: blur(76px);
+        transition:
+          opacity 0.9s var(--ease),
+          transform 1.2s var(--ease);
+        will-change: opacity, transform;
+      }
+
+      [data-view="gallery"] .field__grain {
+        position: absolute;
+        inset: 0;
+        opacity: 0.26;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        background-size: 180px 180px;
+        mix-blend-mode: overlay;
+      }
+
+      /* The lit tile feeds the room: hovering or focusing it raises the ambient. */
+      [data-view="gallery"] body:has(.concept--lit .concept__face:hover) .field__ambient,
+      [data-view="gallery"] body:has(.concept--lit .concept__face:focus-visible) .field__ambient {
+        opacity: 0.54;
+        transform: translateX(-50%) translateY(-2vh) scale(1.03);
+      }
+
+      @keyframes field-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(1.5rem);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Opacity only — transform and filter stay free for the hover swell. */
+      @keyframes ignite {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      /* ---------- Shell ---------- */
+
+      [data-view="gallery"] .shell {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(3rem, 9vh, 6rem);
+        padding: clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 5vw, 3rem)
+          clamp(1.5rem, 4vw, 2.5rem);
+      }
+
+      /* ---------- Top rail ---------- */
+
+      [data-view="gallery"] .rail {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: var(--shell-width);
+        margin: 0 auto;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--hairline);
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.6875rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        animation: rise 0.7s var(--ease) 0.1s both;
+      }
+
+      [data-view="gallery"] .rail__mark {
+        font-weight: 500;
+        color: var(--ink);
+      }
+
+      [data-view="gallery"] .rail__rule {
+        width: 1.25rem;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.22);
+      }
+
+      [data-view="gallery"] .rail__label {
+        color: var(--ink-faint);
+      }
+
+      [data-view="gallery"] .rail__count {
+        margin-left: auto;
+        color: var(--ink-faint);
+      }
+
+      /* ---------- Intro ---------- */
+
+      [data-view="gallery"] .stage {
+        width: var(--shell-width);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(2.5rem, 7vh, 4.5rem);
+      }
+
+      [data-view="gallery"] .intro {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-width: 38rem;
+      }
+
+      [data-view="gallery"] .eyebrow {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--brand-glow);
+        animation: rise 0.8s var(--ease) 0.18s both;
+      }
+
+      [data-view="gallery"] .title {
+        font-family: "Bricolage Grotesque", Inter, sans-serif;
+        font-weight: 700;
+        font-size: clamp(2.75rem, 8vw, 5.25rem);
+        line-height: 0.92;
+        letter-spacing: -0.045em;
+        color: var(--ink);
+        animation: rise 0.9s var(--ease) 0.24s both;
+      }
+
+      [data-view="gallery"] .lede {
+        font-size: 1.0625rem;
+        line-height: 1.55;
+        color: var(--ink-dim);
+        max-width: 30rem;
+        animation: rise 0.9s var(--ease) 0.32s both;
+      }
+
+      /* ---------- Concepts ---------- */
+
+      [data-view="gallery"] .concepts {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      [data-view="gallery"] .concept {
+        animation: rise 0.9s var(--ease) both;
+      }
+
+      [data-view="gallery"] .concept--lit {
+        animation-delay: 0.42s;
+      }
+
+      [data-view="gallery"] .concept--unlit {
+        animation-delay: 0.52s;
+      }
+
+      [data-view="gallery"] .concept__face {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+          "meta meta"
+          "body body"
+          "cta cta";
+        gap: 1.5rem 2rem;
+        isolation: isolate;
+        overflow: hidden;
+        padding: clamp(1.5rem, 3.5vw, 2.25rem);
+        min-height: clamp(15rem, 30vh, 18rem);
+        border-radius: 1.75rem;
+        border: 1px solid var(--hairline);
+        background: rgba(20, 20, 24, 0.62);
+        color: inherit;
+        text-decoration: none;
+        transition:
+          border-color 0.5s var(--ease),
+          background-color 0.5s var(--ease),
+          transform 0.5s var(--ease);
+      }
+
+      /* Glow rises from the bottom edge, the way it sits behind the chat box. */
+      [data-view="gallery"] .concept__glow {
+        position: absolute;
+        left: 50%;
+        bottom: 0;
+        z-index: -1;
+        width: 118%;
+        height: 150%;
+        transform: translate(-50%, 34%);
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse 54% 48% at 50% 50%,
+          color-mix(in srgb, var(--brand-mid) 92%, var(--brand)) 0%,
+          color-mix(in srgb, var(--brand-dark) 80%, transparent) 24%,
+          color-mix(in srgb, var(--brand-deep) 52%, transparent) 44%,
+          transparent 78%
+        );
+        filter: blur(52px);
+        animation: ignite 1.4s var(--ease) 0.6s both;
+        transition:
+          transform 0.75s var(--ease),
+          filter 0.75s var(--ease);
+        will-change: transform, filter;
+      }
+
+      [data-view="gallery"] .concept__glow::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          ellipse 46% 40% at 50% 50%,
+          color-mix(in srgb, var(--brand-soft) 34%, transparent) 0%,
+          transparent 76%
+        );
+        filter: blur(34px);
+      }
+
+      [data-view="gallery"] .concept--lit .concept__face:hover,
+      [data-view="gallery"] .concept--lit .concept__face:focus-visible {
+        border-color: color-mix(in srgb, var(--brand-glow) 34%, transparent);
+        background: rgba(24, 22, 38, 0.68);
+        transform: translateY(-2px);
+      }
+
+      [data-view="gallery"] .concept--lit .concept__face:hover .concept__glow,
+      [data-view="gallery"] .concept--lit .concept__face:focus-visible .concept__glow {
+        transform: translate(-50%, 25%) scale(1.06);
+        filter: blur(46px);
+      }
+
+      [data-view="gallery"] .concept--lit .concept__face:focus-visible {
+        outline: 2px solid var(--brand-glow);
+        outline-offset: 3px;
+      }
+
+      [data-view="gallery"] .concept--unlit .concept__face {
+        background: transparent;
+        border-style: dashed;
+        border-color: rgba(255, 255, 255, 0.14);
+        cursor: default;
+      }
+
+      [data-view="gallery"] .concept__meta {
+        grid-area: meta;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.6875rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      [data-view="gallery"] .concept__index {
+        color: var(--ink-faint);
+      }
+
+      [data-view="gallery"] .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      [data-view="gallery"] .status__dot {
+        width: 0.375rem;
+        height: 0.375rem;
+        border-radius: 50%;
+      }
+
+      [data-view="gallery"] .status--live {
+        color: var(--brand-glow);
+      }
+
+      [data-view="gallery"] .status--live .status__dot {
+        background: var(--brand-glow);
+        box-shadow: 0 0 0 3px
+          color-mix(in srgb, var(--brand-glow) 18%, transparent);
+      }
+
+      [data-view="gallery"] .status--pending {
+        color: var(--ink-faint);
+      }
+
+      [data-view="gallery"] .status--pending .status__dot {
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
+      [data-view="gallery"] .concept__body {
+        grid-area: body;
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+        align-self: end;
+        max-width: 30rem;
+      }
+
+      [data-view="gallery"] .concept__name {
+        font-family: "Bricolage Grotesque", Inter, sans-serif;
+        font-weight: 600;
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+
+      [data-view="gallery"] .concept--unlit .concept__name {
+        color: rgba(255, 255, 255, 0.42);
+      }
+
+      [data-view="gallery"] .concept__desc {
+        font-size: 0.9375rem;
+        line-height: 1.6;
+        color: var(--ink-dim);
+      }
+
+      [data-view="gallery"] .concept--unlit .concept__desc {
+        color: var(--ink-faint);
+      }
+
+      [data-view="gallery"] .concept__cta {
+        grid-area: cta;
+        justify-self: start;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--ink);
+      }
+
+      [data-view="gallery"] .concept__cta svg {
+        width: 1.0625rem;
+        height: 1.0625rem;
+        transition: transform 0.4s var(--ease);
+      }
+
+      [data-view="gallery"] .concept--lit .concept__face:hover .concept__cta svg,
+      [data-view="gallery"] .concept--lit .concept__face:focus-visible .concept__cta svg {
+        transform: translateX(0.3rem);
+      }
+
+      [data-view="gallery"] .concept__cta--inert {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.6875rem;
+        font-weight: 400;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+      }
+
+      /* ---------- Foot ---------- */
+
+      [data-view="gallery"] .foot {
+        display: flex;
+        gap: 0.75rem;
+        width: var(--shell-width);
+        margin: auto auto 0;
+        padding-top: 1rem;
+        border-top: 1px solid var(--hairline);
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.6875rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        animation: rise 0.8s var(--ease) 0.6s both;
+      }
+
+      [data-view="gallery"] .foot__dim {
+        margin-left: auto;
+      }
+
+      /* ---------- Wide: meta and cta share a row with the body ---------- */
+
+      @media (min-width: 48rem) {
+        [data-view="gallery"] .concept__face {
+          grid-template-areas:
+            "meta meta"
+            "body cta";
+          align-items: end;
+        }
+
+        [data-view="gallery"] .concept__cta {
+          grid-area: cta;
+          justify-self: end;
+          align-self: end;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-view="gallery"] .field__ambient,
+        [data-view="gallery"] .field__grain,
+        [data-view="gallery"] .rail,
+        [data-view="gallery"] .eyebrow,
+        [data-view="gallery"] .title,
+        [data-view="gallery"] .lede,
+        [data-view="gallery"] .concept,
+        [data-view="gallery"] .concept__glow,
+        [data-view="gallery"] .field {
+          animation: none;
+        }
+
+        [data-view="gallery"] .field,
+        [data-view="gallery"] .concept__glow {
+          opacity: 1;
+        }
+
+        [data-view="gallery"] .concept__glow,
+        [data-view="gallery"] .concept__face,
+        [data-view="gallery"] .concept__cta svg {
+          transition: none;
+        }
+      }
+
+      /* ================================================================
+         Dashboard shell — shared by both demos.
+         The demo blocks further down add the modal / the drawer.
+         ================================================================ */
+
+      html:is([data-view="demo-1"], [data-view="demo-2"]) {
+        /* Surfaces — an app shell, a shade off the pure black of the agent itself */
+        --void: #08080b;
+        --surface: #131318;
+        --surface-2: #17171d;
+        --hairline: rgba(255, 255, 255, 0.08);
+        --hairline-strong: rgba(255, 255, 255, 0.14);
+
+        --ink: #f2f2f4;
+        --ink-2: rgba(255, 255, 255, 0.62);
+        --ink-3: rgba(255, 255, 255, 0.38);
+
+        /* Brand — the same light the agent is made of */
+        --brand: #5c51ff;
+        --brand-glow: #8f85ff;
+        --brand-mid: #2e2878;
+
+        /* Skeleton */
+        --sk-base: rgba(255, 255, 255, 0.055);
+        --sk-radius: 0.375rem;
+
+        --nav-width: 15rem;
+        --radius: 1rem;
+        --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+        /* FAB → modal flight */
+        --agent-duration: 0.62s;
+        --agent-ease: cubic-bezier(0.32, 0.9, 0.28, 1);
+
+        background: var(--void);
+      }
+
+      html:is([data-view="demo-1"], [data-view="demo-2"]) body {
+        min-height: 100dvh;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        font-size: 0.9375rem;
+        color: var(--ink);
+        background: var(--void);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      html:is([data-view="demo-1"], [data-view="demo-2"])
+        :where(a, button, [tabindex]):focus-visible {
+        outline: 2px solid var(--brand-glow);
+        outline-offset: 2px;
+        border-radius: 0.375rem;
+      }
+
+      /* ============ Skeleton ============ */
+
+      /* Static placeholders — the board is scenery, so nothing in it moves. */
+      .sk {
+        position: relative;
+        display: block;
+        overflow: hidden;
+        flex-shrink: 0;
+        border-radius: var(--sk-radius);
+        background: var(--sk-base);
+      }
+
+      .sk--text {
+        height: 0.6875rem;
+      }
+
+      .sk--sm {
+        height: 0.5rem;
+        opacity: 0.75;
+      }
+
+      .sk--title {
+        width: 9rem;
+        height: 1.75rem;
+        border-radius: 0.5rem;
+      }
+
+      .sk--value {
+        width: 6.5rem;
+        height: 1.625rem;
+        border-radius: 0.5rem;
+      }
+
+      .sk--icon {
+        width: 1.125rem;
+        height: 1.125rem;
+        border-radius: 0.3125rem;
+      }
+
+      .sk--avatar {
+        width: 1.875rem;
+        height: 1.875rem;
+        border-radius: 50%;
+      }
+
+      .sk--control {
+        width: 7.5rem;
+        height: 2.125rem;
+        border-radius: 0.625rem;
+      }
+
+      .sk--chip {
+        width: 4.25rem;
+        height: 1.125rem;
+        border-radius: 999px;
+      }
+
+      .sk--spark {
+        width: 100%;
+        height: 2.75rem;
+        border-radius: 0.5rem;
+      }
+
+      /* Columns share the plot width evenly — they must override the base
+         flex-shrink:0, or twelve full-width bars blow the page out sideways. */
+      .sk--col {
+        flex: 1 1 0;
+        min-width: 0;
+        border-radius: 0.25rem 0.25rem 0.125rem 0.125rem;
+        align-self: flex-end;
+      }
+
+      .sk--bar {
+        height: 0.75rem;
+        border-radius: 999px;
+      }
+
+      /* ============ Shell ============ */
+
+      .app {
+        display: grid;
+        grid-template-columns: var(--nav-width) minmax(0, 1fr);
+        min-height: 100dvh;
+      }
+
+      /* ============ Side navigation ============ */
+
+      .sidenav {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        padding: 1.5rem 1rem;
+        border-right: 1px solid var(--hairline);
+        background: var(--surface);
+        position: sticky;
+        top: 0;
+        height: 100dvh;
+      }
+
+      .sidenav__brand {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        padding: 0 0.5rem;
+      }
+
+      /* The one real thing in the shell: the agent's light, shrunk to a dot. */
+      .sidenav__mark {
+        width: 0.875rem;
+        height: 0.875rem;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 40% 35%,
+          var(--brand-glow) 0%,
+          var(--brand) 55%,
+          var(--brand-mid) 100%
+        );
+        box-shadow: 0 0 12px -1px
+          color-mix(in srgb, var(--brand-glow) 70%, transparent);
+      }
+
+      .sidenav__wordmark {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        letter-spacing: 0.2em;
+      }
+
+      .navskel {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+      }
+
+      .navskel__row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6875rem 0.75rem;
+        border-radius: 0.625rem;
+      }
+
+      .navskel__row.is-current {
+        background: color-mix(in srgb, var(--brand) 14%, transparent);
+      }
+
+      .sidenav__foot {
+        margin-top: auto;
+      }
+
+      .account-skel {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        padding: 0.625rem 0.75rem;
+        border-radius: 0.625rem;
+        border: 1px solid var(--hairline);
+      }
+
+      .account-skel__lines {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* ============ Board ============ */
+
+      .main {
+        padding: 1.75rem clamp(1rem, 3vw, 2.25rem) 7rem;
+        min-width: 0;
+      }
+
+      .board {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.25rem;
+      }
+
+      .topbar__titles {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+      }
+
+      .topbar__tools {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .widget {
+        display: flex;
+        flex-direction: column;
+        gap: 1.125rem;
+        padding: 1.25rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--hairline);
+        background: var(--surface);
+        min-width: 0;
+      }
+
+      .widget__head {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      /* Stat tiles */
+
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+        gap: 1rem;
+      }
+
+      .tile {
+        gap: 0.75rem;
+        padding-bottom: 0;
+        min-height: 10rem;
+        overflow: hidden;
+      }
+
+      .tile .sk--spark {
+        margin: auto -1.25rem 0;
+        width: auto;
+        border-radius: 0;
+      }
+
+      /* Charts */
+
+      .charts {
+        display: grid;
+        grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+        gap: 1rem;
+      }
+
+      .plot {
+        flex: 1;
+      }
+
+      .plot--columns {
+        display: flex;
+        align-items: flex-end;
+        gap: clamp(0.25rem, 1.2vw, 0.75rem);
+        height: 11rem;
+      }
+
+      .plot__axis {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 0.125rem;
+      }
+
+      .plot--bars {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 1.125rem;
+        min-height: 11rem;
+      }
+
+      .barrow {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      /* Table */
+
+      .rows {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.2fr) 5rem minmax(
+            0,
+            1fr
+          );
+        align-items: center;
+        gap: 1.5rem;
+        padding: 0.9375rem 0;
+        border-bottom: 1px solid var(--hairline);
+      }
+
+      .row--head {
+        padding-top: 0;
+      }
+
+      .row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      /* ============ FAB ============ */
+
+      .fab {
+        position: fixed;
+        right: clamp(1rem, 2.5vw, 1.75rem);
+        bottom: clamp(1rem, 2.5vw, 1.75rem);
+        z-index: 40;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.625rem;
+        height: 3.5rem;
+        padding: 0 1.25rem;
+        border: 1px solid color-mix(in srgb, var(--brand-glow) 34%, transparent);
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--brand) 26%, #0d0d12);
+        color: var(--ink);
+        font-family: Inter, sans-serif;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.7);
+        transition:
+          transform 0.34s var(--ease),
+          opacity 0.28s var(--ease),
+          background-color 0.34s var(--ease),
+          border-color 0.34s var(--ease);
+      }
+
+      .fab:hover {
+        transform: translateY(-2px);
+        background: color-mix(in srgb, var(--brand) 34%, #0d0d12);
+        border-color: color-mix(in srgb, var(--brand-glow) 48%, transparent);
+      }
+
+      .fab__icon {
+        width: 1.125rem;
+        height: 1.125rem;
+        fill: var(--brand-glow);
+        flex-shrink: 0;
+      }
+
+      /* The launcher collapses into the light it just released. */
+      body.agent-open .fab {
+        transform: scale(0.55);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          transform 0.3s var(--ease),
+          opacity 0.22s var(--ease);
+      }
+
+      /* ============ Agent surface (shared chrome) ============ */
+
+      /* Each concept sets its own layout on .overlay: demo 1 centres the panel,
+         demo 2 pins it to the right edge. */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: flex;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .overlay.is-open {
+        visibility: visible;
+        pointer-events: auto;
+      }
+
+      .overlay__scrim {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 4, 7, 0.62);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        opacity: 0;
+        transition: opacity var(--agent-duration) var(--agent-ease);
+      }
+
+      .overlay.is-open .overlay__scrim {
+        opacity: 1;
+      }
+
+      .agent__chrome {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-shrink: 0;
+        padding: 0.75rem 0.75rem 0.75rem 1.25rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      }
+
+      .agent__title {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.75rem;
+        font-weight: 500;
+        letter-spacing: 0.2em;
+        color: var(--ink-2);
+      }
+
+      .agent__close {
+        display: grid;
+        place-items: center;
+        width: 2rem;
+        height: 2rem;
+        border: 0;
+        border-radius: 0.5rem;
+        background: transparent;
+        color: var(--ink-2);
+        cursor: pointer;
+        transition:
+          background-color 0.2s var(--ease),
+          color 0.2s var(--ease);
+      }
+
+      .agent__close:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--ink);
+      }
+
+      .agent__close svg {
+        width: 1rem;
+        height: 1rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+      }
+
+      .agent__frame {
+        flex: 1;
+        min-height: 0;
+      }
+
+      .agent__iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+
+      /* ============ Responsive ============ */
+
+      @media (max-width: 60rem) {
+        .charts {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      @media (max-width: 48rem) {
+        .app {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .sidenav {
+          position: static;
+          height: auto;
+          flex-direction: row;
+          align-items: center;
+          gap: 1rem;
+          overflow-x: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--hairline);
+        }
+
+        .navskel {
+          flex-direction: row;
+          gap: 0.25rem;
+        }
+
+        .navskel__row .sk--text {
+          width: 3.5rem !important;
+        }
+
+        .sidenav__foot {
+          margin-top: 0;
+          margin-left: auto;
+        }
+
+        .account-skel__lines {
+          display: none;
+        }
+
+        .row {
+          grid-template-columns: minmax(0, 2fr) 4.5rem minmax(0, 1fr);
+          gap: 1rem;
+        }
+
+        .row > :nth-child(2) {
+          display: none;
+        }
+
+        .fab__label {
+          display: none;
+        }
+
+        .fab {
+          width: 3.5rem;
+          padding: 0;
+          justify-content: center;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .fab {
+          transition: none;
+        }
+      }
+
+      /* ================================================================
+         Concept 1 — the agent grows out of the launcher and settles as a
+         modal.
+         ================================================================ */
+
+      [data-view="demo-1"] .overlay {
+        align-items: center;
+        justify-content: center;
+        padding: clamp(0.75rem, 2vw, 1.5rem);
+      }
+
+      /*
+       * Resting state IS the collapsed-into-the-FAB state: the JS writes the
+       * offset and scale that map this panel onto the launcher, so opening is
+       * just a return to identity. Closing replays it in reverse for free.
+       */
+      [data-view="demo-1"] .agent {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        width: min(70rem, 100%);
+        height: min(46rem, 100%);
+        overflow: hidden;
+        border: 1px solid var(--hairline-strong);
+        background: #000;
+        transform-origin: 50% 50%;
+        transform: translate(var(--fab-dx, 0px), var(--fab-dy, 0px))
+          scale(var(--fab-scale, 0.06));
+        border-radius: 999px;
+        opacity: 0;
+        box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.85);
+        transition:
+          transform var(--agent-duration) var(--agent-ease),
+          border-radius var(--agent-duration) var(--agent-ease),
+          opacity 0.3s var(--agent-ease);
+      }
+
+      [data-view="demo-1"] .overlay.is-open .agent {
+        transform: none;
+        border-radius: 1.25rem;
+        opacity: 1;
+      }
+
+      /* Contents fade in behind the flight so the panel never looks squashed. */
+      [data-view="demo-1"] .agent__chrome,
+      [data-view="demo-1"] .agent__frame {
+        opacity: 0;
+        transition: opacity 0.3s var(--agent-ease);
+      }
+
+      [data-view="demo-1"] .overlay.is-open .agent__chrome,
+      [data-view="demo-1"] .overlay.is-open .agent__frame {
+        opacity: 1;
+        transition-delay: 0.26s;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-view="demo-1"] .agent {
+          transition:
+            opacity 0.2s linear,
+            border-radius 0.001s linear;
+          transform: none;
+          border-radius: 1.25rem;
+        }
+
+        [data-view="demo-1"] .overlay.is-open .agent {
+          transform: none;
+        }
+
+        [data-view="demo-1"] .agent__chrome,
+        [data-view="demo-1"] .agent__frame,
+        [data-view="demo-1"] .overlay__scrim {
+          transition-duration: 0.2s;
+          transition-delay: 0s;
+        }
+      }
+
+      /* ================================================================
+         Concept 2 — the agent slides in against the right edge and pushes
+         the board aside rather than covering it.
+         ================================================================ */
+
+      html[data-view="demo-2"] {
+        --drawer-w: min(36rem, 100vw);
+      }
+
+      [data-view="demo-2"] .overlay {
+        justify-content: flex-end;
+      }
+
+      /*
+       * Non-modal: the board stays visible and usable beside the drawer, so the
+       * full-viewport overlay must not swallow pointer events — only the panel
+       * itself takes them back.
+       */
+      [data-view="demo-2"] .overlay.is-open {
+        pointer-events: none;
+      }
+
+      [data-view="demo-2"] .overlay__scrim {
+        display: none;
+      }
+
+      /*
+       * Rest position is off-screen, so opening is a return to identity and
+       * closing replays it in reverse — no second keyframe set, and an
+       * interrupted open reverses from wherever it happens to be.
+       */
+      [data-view="demo-2"] .agent {
+        position: relative;
+        z-index: 1;
+        pointer-events: auto;
+        display: flex;
+        flex-direction: column;
+        width: var(--drawer-w);
+        height: 100%;
+        overflow: hidden;
+        border-left: 1px solid var(--hairline-strong);
+        border-radius: 1.25rem 0 0 1.25rem;
+        background: #000;
+        transform: translateX(100%);
+        box-shadow: -30px 0 70px -30px rgba(0, 0, 0, 0.9);
+        transition: transform var(--agent-duration) var(--agent-ease);
+      }
+
+      [data-view="demo-2"] .overlay.is-open .agent {
+        transform: none;
+      }
+
+      /* The push. The drawer is fixed, so the board yields room by padding. */
+      [data-view="demo-2"] .app {
+        transition: padding-right var(--agent-duration) var(--agent-ease);
+      }
+
+      [data-view="demo-2"] body.agent-open .app {
+        padding-right: var(--drawer-w);
+      }
+
+      /* Too narrow to seat the board and the drawer side by side — let the
+         drawer cover instead, and bring the scrim back so it reads as modal. */
+      @media (max-width: 68rem) {
+        /* Covering, not pushing — so leave some board showing behind it. */
+        html[data-view="demo-2"] {
+          --drawer-w: min(32rem, 92vw);
+        }
+
+        [data-view="demo-2"] body.agent-open .app {
+          padding-right: 0;
+        }
+
+        [data-view="demo-2"] .overlay.is-open {
+          pointer-events: auto;
+        }
+
+        [data-view="demo-2"] .overlay__scrim {
+          display: block;
+        }
+      }
+
+      @media (max-width: 30rem) {
+        [data-view="demo-2"] .agent {
+          border-radius: 0;
+          border-left: 0;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-view="demo-2"] .agent,
+        [data-view="demo-2"] .app {
+          transition: none;
+        }
+
+        [data-view="demo-2"] .agent {
+          transform: none;
+        }
+
+        [data-view="demo-2"] .overlay__scrim {
+          transition-duration: 0.2s;
+        }
+      }
+
+      /* ================================================================
+         The agent itself — what the demos frame at #/agent
+         ================================================================ */
+
+      html[data-view="agent"] {
+        /* --bg: #121212; */
+        --bg: #000000;
+        --brand: #5c51ff;
+        --brand-dark: #1a1748;
+        --brand-deep: #12102e;
+        --brand-mid: #2e2878;
+        --brand-glow: #8f85ff;
+        --brand-soft: #6e62ff;
+        --chat-move-duration: 1.15s;
+        --chat-move-ease: cubic-bezier(0.22, 1, 0.36, 1);
+        --chat-input-max-height: clamp(6rem, 22vh, 7.5rem);
+        --history-rail-width: 3.25rem;
+        --history-panel-width: min(17rem, 78vw);
+        --history-panel-radius: 1.125rem;
+        --history-panel-duration: 0.42s;
+        --history-panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+        width: 100%;
+        height: 100%;
+        background: var(--bg);
+      }
+
+      [data-view="agent"] body {
+        width: 100%;
+        min-height: 100%;
+        min-height: 100dvh;
+        font-family:
+          Inter,
+          system-ui,
+          -apple-system,
+          sans-serif;
+        color: #fff;
+        background: var(--bg);
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+      [data-view="agent"] body:has(.page.is-chat-active) {
+        height: 100dvh;
+        height: 100svh;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      [data-view="agent"] .page {
+        position: relative;
+        width: 100%;
+        min-height: 100dvh;
+        min-height: 100svh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(1rem, 4vw, 2rem) clamp(0.75rem, 3vw, 1.5rem);
+        /* The history rail is fixed on the left, so always clear its width —
+           otherwise it sits on top of the content in a narrow embed. */
+        padding-left: max(
+          clamp(0.75rem, 3vw, 1.5rem),
+          var(--history-rail-width)
+        );
+        isolation: isolate;
+        transition: padding var(--chat-move-duration) var(--chat-move-ease);
+      }
+
+      [data-view="agent"] .page.is-chat-active {
+        align-items: flex-end;
+        justify-content: center;
+        height: 100dvh;
+        height: 100svh;
+        min-height: 0;
+        max-height: 100dvh;
+        max-height: 100svh;
+        overflow: hidden;
+        padding: 0 clamp(0.75rem, 3vw, 1.5rem) clamp(1.25rem, 4vw, 2rem);
+        padding-left: max(
+          clamp(0.75rem, 3vw, 1.5rem),
+          var(--history-rail-width)
+        );
+      }
+
+      /* Snap layout instantly during slide — only transform moves on .chat-session */
+      [data-view="agent"] .page.is-chat-entering,
+      [data-view="agent"] .page.is-chat-entering .content,
+      [data-view="agent"] .page.is-chat-entering .chat-session,
+      [data-view="agent"] .page.is-chat-entering .messages,
+      [data-view="agent"] .page.is-chat-entering .chat-area .chat-glow {
+        transition: none !important;
+      }
+
+      [data-view="agent"] .page.is-chat-entering .content__hero {
+        transition: opacity calc(var(--chat-move-duration) * 0.55)
+          var(--chat-move-ease) !important;
+        transform: none !important;
+      }
+
+      [data-view="agent"] .page.is-chat-entering .message {
+        animation: none;
+      }
+
+      /* Background */
+      [data-view="agent"] .background {
+        pointer-events: none;
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      @keyframes pattern-fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 0.28;
+        }
+      }
+
+      @keyframes chat-glow-in {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.88);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+
+      /*
+       * The glow shrinks down to the chat box footprint. Since the box sits
+       * above it in z-order, the sides and bottom get occluded by the box
+       * itself, reading as the glow sliding behind it. A slight upward bias
+       * leaves the remaining light escaping only above the top edge.
+       */
+      @keyframes glow-collapse-behind {
+        0% {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+          filter: blur(64px);
+        }
+        55% {
+          opacity: 1;
+          transform: translate(-50%, -52.5%) scale(0.6, 0.45);
+          filter: blur(48px);
+        }
+        100% {
+          opacity: 0.95;
+          transform: translate(-50%, -56.25%) scale(0.46, 0.16);
+          filter: blur(26px);
+        }
+      }
+
+      @keyframes glow-release-from-behind {
+        0% {
+          opacity: 0.95;
+          transform: translate(-50%, -56.25%) scale(0.46, 0.16);
+          filter: blur(26px);
+        }
+        45% {
+          opacity: 1;
+          transform: translate(-50%, -52.5%) scale(0.6, 0.45);
+          filter: blur(48px);
+        }
+        100% {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+          filter: blur(64px);
+        }
+      }
+
+      [data-view="agent"] .background__pattern {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        background-size: 180px 180px;
+        mix-blend-mode: overlay;
+        animation: pattern-fade 1.8s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+      }
+
+      [data-view="agent"] .chat-area {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+      }
+
+      [data-view="agent"] .chat-glow {
+        position: absolute;
+        left: 50%;
+        top: 54%;
+        width: 240%;
+        height: 480%;
+        max-width: 72rem;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0;
+        animation: chat-glow-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        will-change: transform, opacity, filter;
+        background: radial-gradient(
+          ellipse 82% 68% at 50% 50%,
+          color-mix(in srgb, var(--brand-mid) 90%, var(--brand)) 0%,
+          color-mix(in srgb, var(--brand-dark) 85%, transparent) 20%,
+          color-mix(in srgb, var(--brand-deep) 55%, transparent) 38%,
+          transparent 88%
+        );
+        filter: blur(64px);
+      }
+
+      /* After the intro animation has played once, freeze its end state so
+         class toggles below never replay the page-load fade-in. */
+      [data-view="agent"] .chat-area.glow-settled .chat-glow {
+        animation: none;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+        filter: blur(64px);
+      }
+
+      [data-view="agent"] .chat-area.is-glow-converging .chat-glow {
+        animation: glow-collapse-behind 1.1s cubic-bezier(0.5, 0.05, 0.2, 1)
+          forwards;
+      }
+
+      [data-view="agent"]
+        .chat-area.is-listening:not(.is-glow-converging)
+        .chat-glow {
+        animation: none;
+        opacity: 0.95;
+        transform: translate(-50%, -56.25%) scale(0.46, 0.16);
+        filter: blur(26px);
+      }
+
+      [data-view="agent"] .chat-area.is-glow-expanding .chat-glow {
+        animation: glow-release-from-behind 1s cubic-bezier(0.22, 1, 0.36, 1)
+          forwards;
+      }
+
+      [data-view="agent"] .chat-glow::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          ellipse 78% 64% at 50% 50%,
+          color-mix(in srgb, var(--brand-soft) 32%, transparent) 0%,
+          transparent 84%
+        );
+        filter: blur(40px);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-view="agent"] .page,
+        [data-view="agent"] .content,
+        [data-view="agent"] .content__hero,
+        [data-view="agent"] .messages,
+        [data-view="agent"] .chat-session,
+        [data-view="agent"] .page.is-chat-active .chat-glow,
+        [data-view="agent"] .page.is-chat-entering .content__hero {
+          transition: none;
+        }
+
+        [data-view="agent"] .message {
+          animation: none;
+        }
+
+        [data-view="agent"] .typing-dot {
+          animation: none;
+        }
+
+        [data-view="agent"] .background__pattern,
+        [data-view="agent"] .chat-glow {
+          animation: none;
+          opacity: 1;
+        }
+
+        [data-view="agent"] .background__pattern {
+          opacity: 0.28;
+        }
+
+        [data-view="agent"] .chat-area.is-glow-converging .chat-glow,
+        [data-view="agent"] .chat-area.is-glow-expanding .chat-glow {
+          animation: none;
+        }
+
+        [data-view="agent"] .chat-area.is-listening .chat-glow {
+          animation: none;
+          opacity: 0.95;
+          transform: translate(-50%, -56.25%) scale(0.46, 0.16);
+          filter: blur(26px);
+        }
+
+        [data-view="agent"] .voice-wave,
+        [data-view="agent"] .content {
+          transition: none;
+        }
+      }
+
+      [data-view="agent"] .content {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: min(42rem, 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: clamp(1.25rem, 4vw, 2rem);
+        overflow: visible;
+        transition:
+          gap var(--chat-move-duration) var(--chat-move-ease),
+          transform var(--chat-move-duration) var(--chat-move-ease),
+          height var(--chat-move-duration) var(--chat-move-ease),
+          max-width var(--chat-move-duration) var(--chat-move-ease);
+      }
+
+      [data-view="agent"] .page.is-chat-active .content {
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        gap: 0;
+        justify-content: flex-end;
+        overflow: hidden;
+        max-width: min(48rem, 100%);
+      }
+
+      [data-view="agent"] .content__hero {
+        width: 100%;
+        transition:
+          opacity calc(var(--chat-move-duration) * 0.65) var(--chat-move-ease),
+          transform var(--chat-move-duration) var(--chat-move-ease),
+          max-height var(--chat-move-duration) var(--chat-move-ease),
+          margin var(--chat-move-duration) var(--chat-move-ease);
+      }
+
+      [data-view="agent"] .page.is-chat-active .content__hero {
+        opacity: 0;
+        transform: translateY(-1.25rem) scale(0.96);
+        max-height: 0;
+        margin: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      [data-view="agent"] .chat-session {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        transition: flex var(--chat-move-duration) var(--chat-move-ease);
+      }
+
+      [data-view="agent"] .page.is-chat-active .chat-session {
+        flex: 1;
+        min-height: 0;
+        justify-content: flex-end;
+      }
+
+      [data-view="agent"] .messages {
+        display: flex;
+        flex-direction: column;
+        gap: 0.875rem;
+        width: 100%;
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        padding: 0 0.25rem;
+        text-align: left;
+        transition:
+          max-height var(--chat-move-duration) var(--chat-move-ease),
+          opacity calc(var(--chat-move-duration) * 0.7) var(--chat-move-ease)
+            0.12s,
+          padding var(--chat-move-duration) var(--chat-move-ease);
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+      }
+
+      [data-view="agent"] .page.is-chat-active .messages {
+        flex: 1;
+        min-height: 0;
+        max-height: none;
+        opacity: 1;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: clamp(1.5rem, 6vw, 3rem) 0.25rem 0.75rem;
+        mask-image: linear-gradient(
+          to bottom,
+          transparent,
+          #000 1.5rem,
+          #000 calc(100% - 0.5rem),
+          transparent
+        );
+      }
+
+      [data-view="agent"] .message {
+        display: flex;
+        width: 100%;
+        animation: message-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+
+      [data-view="agent"] .message--user {
+        justify-content: flex-end;
+      }
+
+      [data-view="agent"] .message--assistant {
+        justify-content: flex-start;
+      }
+
+      [data-view="agent"] .message__bubble {
+        max-width: min(85%, 28rem);
+        padding: 0.75rem 1rem;
+        border-radius: 1.25rem;
+        font-size: 0.9375rem;
+        line-height: 1.5;
+        word-break: break-word;
+      }
+
+      [data-view="agent"] .message--user .message__bubble {
+        background: color-mix(in srgb, var(--brand) 72%, #2a2a2e);
+        color: #fff;
+        border-bottom-right-radius: 0.375rem;
+        box-shadow: 0 4px 16px -6px
+          color-mix(in srgb, var(--brand) 40%, transparent);
+      }
+
+      [data-view="agent"] .message--assistant .message__bubble {
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom-left-radius: 0.375rem;
+      }
+
+      [data-view="agent"] .message--typing .message__bubble {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.875rem 1.125rem;
+        min-width: 3.5rem;
+      }
+
+      [data-view="agent"] .typing-dot {
+        width: 0.4rem;
+        height: 0.4rem;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.45);
+        animation: typing-bounce 1.2s ease-in-out infinite;
+      }
+
+      [data-view="agent"] .typing-dot:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+
+      [data-view="agent"] .typing-dot:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+
+      @keyframes message-in {
+        from {
+          opacity: 0;
+          transform: translateY(0.75rem);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes typing-bounce {
+        0%,
+        60%,
+        100% {
+          transform: translateY(0);
+          opacity: 0.45;
+        }
+        30% {
+          transform: translateY(-0.35rem);
+          opacity: 1;
+        }
+      }
+
+      [data-view="agent"] .page.is-chat-active .chat-area {
+        flex-shrink: 0;
+        padding-top: 0.25rem;
+        overflow: hidden;
+      }
+
+      [data-view="agent"] .page.is-chat-active .chat-box:focus-within {
+        transform: none;
+        padding: 0.75rem;
+        gap: 0.5rem;
+      }
+
+      [data-view="agent"] .page.is-chat-active .chat-glow {
+        opacity: 0.35;
+        filter: blur(40px);
+        transform: translate(-50%, -50%) scale(0.7);
+        transition:
+          opacity var(--chat-move-duration) var(--chat-move-ease),
+          filter var(--chat-move-duration) var(--chat-move-ease),
+          transform var(--chat-move-duration) var(--chat-move-ease);
+      }
+
+      [data-view="agent"] .page.is-chat-active .chat-area.glow-settled .chat-glow {
+        opacity: 0.35;
+        transform: translate(-50%, -50%) scale(0.7);
+        filter: blur(40px);
+      }
+
+      [data-view="agent"] .content:has(.chat-area.is-glow-converging),
+      [data-view="agent"] .content:has(.chat-area.is-listening) {
+        gap: clamp(3rem, 9vw, 4.75rem);
+        transform: translateY(-1.5rem);
+      }
+
+      [data-view="agent"] .content:has(.chat-area.is-glow-expanding) {
+        gap: clamp(1.25rem, 4vw, 2rem);
+        transform: translateY(0);
+      }
+
+      [data-view="agent"]
+        .page.is-chat-active
+        .content:has(.chat-area.is-glow-converging),
+      [data-view="agent"]
+        .page.is-chat-active
+        .content:has(.chat-area.is-listening),
+      [data-view="agent"]
+        .page.is-chat-active
+        .content:has(.chat-area.is-glow-expanding) {
+        gap: 0;
+        transform: none;
+      }
+
+      [data-view="agent"] .heading {
+        position: relative;
+        z-index: 3;
+        color: #f4f4f5;
+        font-size: clamp(1.5rem, 4vw, 1.875rem);
+        font-weight: 500;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+      }
+
+      /* Sits below center, closer to the chat box than the heading. */
+      [data-view="agent"] .voice-wave {
+        position: absolute;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: clamp(4.5rem, 9vw, 5.75rem);
+        pointer-events: none;
+        z-index: 4;
+        opacity: 0;
+        visibility: hidden;
+        overflow: visible;
+        background: transparent;
+        transform: translateY(calc(-50% + 10px)) scaleY(0.55);
+        transform-origin: 50% 50%;
+        transition:
+          opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+          visibility 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+          transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+        -webkit-mask-image:
+          linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent),
+          linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+        -webkit-mask-composite: source-in;
+        mask-image:
+          linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent),
+          linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+        mask-composite: intersect;
+      }
+
+      [data-view="agent"] .content:has(.chat-area.is-glow-converging) .voice-wave,
+      [data-view="agent"] .content:has(.chat-area.is-listening) .voice-wave {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(-50%) scaleY(1);
+        transition-delay: 0.55s, 0.55s, 0.55s;
+      }
+
+      [data-view="agent"] .content:has(.chat-area.is-glow-expanding) .voice-wave {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(calc(-50% + 8px)) scaleY(0.5);
+        transition:
+          opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+          visibility 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+          transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      [data-view="agent"] .voice-wave canvas {
+        display: block;
+        background: transparent;
+      }
+
+      /* Chat box */
+      [data-view="agent"] .chat-box {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        overflow: visible;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        border-radius: 1.75rem;
+        background: rgba(28, 28, 30, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.25),
+          0 0 0 1px rgba(0, 0, 0, 0.88);
+        text-align: left;
+        transform: scale(1);
+        transform-origin: center center;
+        transition:
+          transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+          padding 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+          gap 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+          background 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+          border-color 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+          box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      [data-view="agent"] .chat-box:focus-within {
+        transform: scale(1.025);
+        padding: 1rem 1.125rem;
+        gap: 0.625rem;
+        background: rgba(34, 34, 36, 0.97);
+        border-color: rgba(255, 255, 255, 0.14);
+        box-shadow:
+          0 28px 48px -12px rgba(0, 0, 0, 0.45),
+          0 0 0 1px rgba(255, 255, 255, 0.06),
+          0 0 56px -16px color-mix(in srgb, var(--brand-soft) 22%, transparent);
+      }
+
+      [data-view="agent"] .chat-box__input-wrap {
+        position: relative;
+        min-height: 38px;
+        transition: min-height 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      [data-view="agent"] .chat-box:focus-within .chat-box__input-wrap {
+        min-height: 44px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-view="agent"] .chat-box,
+        [data-view="agent"] .chat-box__input-wrap {
+          transition: none;
+        }
+
+        [data-view="agent"] .chat-box:focus-within {
+          transform: none;
+        }
+      }
+
+      [data-view="agent"] .chat-box__placeholder {
+        position: absolute;
+        inset: 0;
+        padding: 0.5rem;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 1rem;
+        line-height: 1.375;
+        pointer-events: none;
+        transition: opacity 0.2s;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      [data-view="agent"] .chat-box__placeholder.is-hidden {
+        opacity: 0;
+      }
+
+      [data-view="agent"] .chat-box__placeholder-cursor {
+        display: inline-block;
+        width: 1px;
+        height: 1em;
+        margin-left: 1px;
+        vertical-align: text-bottom;
+        background: rgba(255, 255, 255, 0.45);
+        animation: cursor-blink 1s step-end infinite;
+      }
+
+      [data-view="agent"]
+        .chat-box__placeholder.is-hidden
+        .chat-box__placeholder-cursor {
+        animation: none;
+      }
+
+      @keyframes cursor-blink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      [data-view="agent"] .chat-box__input {
+        width: 100%;
+        min-height: 38px;
+        max-height: var(--chat-input-max-height);
+        padding: 0.5rem;
+        border: none;
+        outline: none;
+        resize: none;
+        background: transparent;
+        color: #fff;
+        font: inherit;
+        font-size: 1rem;
+        line-height: 1.375;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+      }
+
+      [data-view="agent"] .chat-box__input::placeholder {
+        color: rgba(255, 255, 255, 0.45);
+      }
+
+      [data-view="agent"] .chat-box__toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.25rem;
+      }
+
+      [data-view="agent"] .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border: none;
+        border-radius: 9999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      [data-view="agent"] .icon-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      [data-view="agent"] .icon-btn.is-recording {
+        color: var(--brand-glow);
+        background: color-mix(in srgb, var(--brand) 28%, transparent);
+        box-shadow: 0 0 20px -4px
+          color-mix(in srgb, var(--brand-soft) 55%, transparent);
+      }
+
+      [data-view="agent"] .icon-btn svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      [data-view="agent"] .send-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        margin-left: 0.25rem;
+        border: none;
+        border-radius: 9999px;
+        background: rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.5);
+        cursor: not-allowed;
+      }
+
+      [data-view="agent"] .send-btn.is-active {
+        background: #fff;
+        color: #111;
+        cursor: pointer;
+      }
+
+      [data-view="agent"] .send-btn.is-active:hover {
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      [data-view="agent"] .send-btn svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      @media (max-width: 640px) {
+        [data-view="agent"] .chat-box:focus-within {
+          transform: none;
+          padding: 0.875rem;
+        }
+
+        [data-view="agent"] .chat-box__placeholder {
+          font-size: 0.9375rem;
+        }
+
+        [data-view="agent"] .chat-glow {
+          width: 220%;
+          height: 440%;
+          filter: blur(48px);
+        }
+      }
+
+      @media (max-width: 380px) {
+        [data-view="agent"] .heading {
+          font-size: 1.375rem;
+        }
+
+        [data-view="agent"] .chat-box__placeholder {
+          font-size: 0.875rem;
+        }
+      }
+
+      /* Chat history — left rail + sliding panel */
+      [data-view="agent"] .history-rail {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        width: var(--history-rail-width);
+        height: 100dvh;
+        height: 100svh;
+        padding: 0.75rem 0;
+        background: rgba(10, 10, 12, 0.94);
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(16px);
+      }
+
+      [data-view="agent"] .history-rail__top {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0 0.5rem;
+      }
+
+      [data-view="agent"] .history-rail__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.25rem;
+        height: 2.25rem;
+        border: none;
+        border-radius: 0.625rem;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.62);
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          color 0.15s ease;
+      }
+
+      [data-view="agent"] .history-rail__btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+      }
+
+      [data-view="agent"] .history-rail__btn.is-active {
+        background: color-mix(in srgb, var(--brand) 20%, transparent);
+        color: var(--brand-glow);
+      }
+
+      [data-view="agent"] .history-rail__btn svg {
+        width: 1.125rem;
+        height: 1.125rem;
+      }
+
+      [data-view="agent"] .history-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 26;
+        background: rgba(0, 0, 0, 0.45);
+        opacity: 0;
+        pointer-events: none;
+        backdrop-filter: blur(2px);
+        transition: opacity var(--history-panel-duration)
+          var(--history-panel-ease);
+      }
+
+      [data-view="agent"] .history-backdrop.is-visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      [data-view="agent"] .history-panel {
+        position: fixed;
+        top: 0;
+        left: var(--history-rail-width);
+        z-index: 28;
+        display: flex;
+        flex-direction: column;
+        width: var(--history-panel-width);
+        height: 100dvh;
+        height: 100svh;
+        border-top-right-radius: var(--history-panel-radius);
+        border-bottom-right-radius: var(--history-panel-radius);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(14, 14, 16, 0.97);
+        backdrop-filter: blur(20px);
+        box-shadow: 12px 0 48px -16px rgba(0, 0, 0, 0.55);
+        transform: translateX(calc(-100% - var(--history-rail-width)));
+        transition: transform var(--history-panel-duration)
+          var(--history-panel-ease);
+        will-change: transform;
+      }
+
+      [data-view="agent"] .history-panel.is-open {
+        transform: translateX(0);
+      }
+
+      [data-view="agent"] .history-panel__header {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.375rem;
+        padding: 1.125rem 1rem 0.75rem;
+        flex-shrink: 0;
+      }
+
+      [data-view="agent"] .history-panel__brand {
+        font-size: 1.125rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: #f4f4f5;
+      }
+
+      [data-view="agent"] .history-panel__title {
+        font-size: 0.75rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: rgba(255, 255, 255, 0.4);
+        text-transform: uppercase;
+      }
+
+      [data-view="agent"] .history-list {
+        list-style: none;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 0.25rem 0.625rem 1.25rem;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+        mask-image: linear-gradient(
+          to bottom,
+          transparent,
+          #000 0.5rem,
+          #000 calc(100% - 1rem),
+          transparent
+        );
+      }
+
+      [data-view="agent"] .history-item {
+        width: 100%;
+      }
+
+      [data-view="agent"] .history-item__btn {
+        width: 100%;
+        padding: 0.625rem 0.625rem;
+        border: none;
+        border-radius: 0.625rem;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.88);
+        font: inherit;
+        font-size: 0.9375rem;
+        font-weight: 400;
+        line-height: 1.35;
+        text-align: left;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition:
+          background 0.15s ease,
+          color 0.15s ease;
+      }
+
+      [data-view="agent"] .history-item__btn:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+      }
+
+      [data-view="agent"] .history-item.is-active .history-item__btn {
+        background: color-mix(in srgb, var(--brand) 18%, transparent);
+        color: #fff;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-view="agent"] .history-backdrop,
+        [data-view="agent"] .history-panel {
+          transition: none;
+        }
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Scope bar — the notch tucked behind the top of the chat box         */
+      /* ------------------------------------------------------------------ */
+
+      /*
+       * Sits in flow above the form and is pulled down under it. The chat box
+       * carries z-index 1, so it paints over the bar's lower half and only the
+       * notch reads — no clipping or masking needed.
+       */
+      [data-view="agent"] .scope {
+        position: relative;
+        z-index: 0;
+        display: flex;
+        padding: 0 0.5rem;
+        margin-bottom: -1.125rem;
+      }
+
+      /*
+       * In chat-active state .chat-area clips its overflow, so the glow inside it
+       * ends in a hard rectangle. The chat box covers that edge everywhere except
+       * this strip, so the strip paints the page colour and the seam disappears.
+       */
+      [data-view="agent"] .page.is-chat-active .scope {
+        background: var(--bg);
+        /* .chat-area adds 0.25rem of top padding in this state; reach up over it
+           so no sliver of the clipped glow is left showing above the notch. */
+        margin-top: -0.25rem;
+        padding-top: 0.25rem;
+      }
+
+      [data-view="agent"] .scope__bar {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex: 1;
+        min-width: 0;
+        overflow-x: auto;
+        padding: 0.375rem 0.5rem 1.375rem;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-bottom: 0;
+        border-radius: 0.875rem 0.875rem 0 0;
+        background: rgba(36, 36, 40, 0.96);
+        scrollbar-width: none;
+      }
+
+      [data-view="agent"] .scope__bar::-webkit-scrollbar {
+        display: none;
+      }
+
+      [data-view="agent"] .scope__item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4375rem;
+        flex-shrink: 0;
+        padding: 0.3125rem 0.5rem;
+        border: 0;
+        border-radius: 0.5rem;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.7);
+        font: inherit;
+        font-size: 0.8125rem;
+        line-height: 1.2;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+          background 0.16s ease,
+          color 0.16s ease;
+      }
+
+      [data-view="agent"] .scope__item:hover,
+      [data-view="agent"] .scope__item[aria-expanded="true"] {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+      }
+
+      [data-view="agent"] .scope__item-icon {
+        width: 0.9375rem;
+        height: 0.9375rem;
+        flex-shrink: 0;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        opacity: 0.75;
+      }
+
+      /* Parked on <body>, positioned by JS — see initScopeBar for why. */
+      [data-view="agent"] .scope__menu {
+        position: fixed;
+        z-index: 60;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        width: min(21rem, calc(100vw - 2rem));
+        padding: 0.375rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.875rem;
+        background: rgba(30, 30, 34, 0.98);
+        box-shadow:
+          0 24px 48px -12px rgba(0, 0, 0, 0.7),
+          0 0 0 1px rgba(0, 0, 0, 0.6);
+        animation: scope-menu-in 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      [data-view="agent"] .scope__menu[hidden] {
+        display: none;
+      }
+
+      @keyframes scope-menu-in {
+        from {
+          opacity: 0;
+          transform: translateY(0.375rem);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      [data-view="agent"] .scope__search {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.375rem 0.5rem 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      }
+
+      [data-view="agent"] .scope__search-icon {
+        width: 0.9375rem;
+        height: 0.9375rem;
+        flex-shrink: 0;
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.4);
+        stroke-width: 1.6;
+        stroke-linecap: round;
+      }
+
+      [data-view="agent"] .scope__search-input {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: #fff;
+        font: inherit;
+        font-size: 0.875rem;
+        outline: none;
+      }
+
+      [data-view="agent"] .scope__search-input::placeholder {
+        color: rgba(255, 255, 255, 0.35);
+      }
+
+      [data-view="agent"] .scope__list {
+        list-style: none;
+        /* flex-shrinks inside the JS-capped menu, so the search stays visible */
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 13.5rem;
+        margin-top: 0.375rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+      }
+
+      [data-view="agent"] .scope__list::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      [data-view="agent"] .scope__list::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.18);
+      }
+
+      [data-view="agent"] .scope__option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.5rem 0.5625rem;
+        border: 0;
+        border-radius: 0.5rem;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.9);
+        font: inherit;
+        font-size: 0.875rem;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.14s ease;
+      }
+
+      [data-view="agent"] .scope__option:hover,
+      [data-view="agent"] .scope__option.is-active {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      [data-view="agent"] .scope__option[aria-selected="true"] {
+        background: color-mix(in srgb, var(--brand) 22%, transparent);
+      }
+
+      [data-view="agent"] .scope__option-icon {
+        width: 0.9375rem;
+        height: 0.9375rem;
+        flex-shrink: 0;
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.55);
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      [data-view="agent"] .scope__option-name {
+        white-space: nowrap;
+      }
+
+      [data-view="agent"] .scope__option-meta {
+        color: rgba(255, 255, 255, 0.34);
+        font-size: 0.8125rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      [data-view="agent"] .scope__empty {
+        padding: 0.75rem 0.5625rem;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 0.8125rem;
+      }
+
+      [data-view="agent"] .scope__empty[hidden] {
+        display: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        [data-view="agent"] .scope__menu {
+          animation: none;
+        }
+
+        [data-view="agent"] .scope__item,
+        [data-view="agent"] .scope__option {
+          transition: none;
+        }
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Compact fit — requested by a narrow host via ?layout=compact         */
+      /* ------------------------------------------------------------------ */
+
+      [data-view="agent"] .page.is-compact {
+        --chat-input-max-height: clamp(4.5rem, 16vh, 5.75rem);
+      }
+
+      [data-view="agent"] .page.is-compact .content,
+      [data-view="agent"] .page.is-compact.is-chat-active .content {
+        max-width: min(30rem, 100%);
+      }
+
+      [data-view="agent"] .page.is-compact .heading {
+        font-size: clamp(1.25rem, 3.4vw, 1.5rem);
+      }
+
+      [data-view="agent"] .page.is-compact .chat-box {
+        gap: 0.375rem;
+        padding: 0.5rem;
+        border-radius: 1.375rem;
+      }
+
+      [data-view="agent"] .page.is-compact .chat-box:focus-within,
+      [data-view="agent"] .page.is-compact.is-chat-active .chat-box:focus-within {
+        padding: 0.6875rem 0.8125rem;
+        gap: 0.5rem;
+      }
+
+      [data-view="agent"] .page.is-compact .chat-box__input-wrap {
+        min-height: 30px;
+      }
+
+      /* The textarea carries its own floor, and min-height beats the height the
+         autosizer writes — so it has to come down too or the box never shrinks. */
+      [data-view="agent"] .page.is-compact .chat-box__input {
+        min-height: 30px;
+      }
+
+      [data-view="agent"] .page.is-compact .chat-box:focus-within .chat-box__input-wrap {
+        min-height: 34px;
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Embedded fit — the frame is the viewport, so the page never scrolls  */
+      /* ------------------------------------------------------------------ */
+
+      html[data-view="agent"].is-embedded,
+      [data-view="agent"].is-embedded body,
+      [data-view="agent"] body:has(.page.is-chat-active) {
+        height: 100%;
+      }
+
+      html[data-view="agent"].is-embedded,
+      [data-view="agent"].is-embedded body {
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      [data-view="agent"].is-embedded .page,
+      [data-view="agent"].is-embedded .page.is-chat-active {
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+      }
+    </style>
   </head>
+
   <body>
-    <div class="field" aria-hidden="true">
-      <div class="field__ambient"></div>
-      <div class="field__grain"></div>
+    <!-- ================================================================
+         Gallery view
+         ================================================================ -->
+    <div class="view" id="view-gallery">
+      <div class="field" aria-hidden="true">
+        <div class="field__ambient"></div>
+        <div class="field__grain"></div>
+      </div>
+
+      <div class="shell">
+        <header class="rail">
+          <span class="rail__mark">MADA</span>
+          <span class="rail__rule"></span>
+          <span class="rail__label">Agent UI</span>
+          <span class="rail__count">2 concepts</span>
+        </header>
+
+        <main class="stage">
+          <div class="intro">
+            <p class="eyebrow">Concept gallery</p>
+            <h1 class="title">Pick a concept.</h1>
+            <p class="lede">
+              One agent, two interfaces. Open a demo to try it in the browser.
+            </p>
+          </div>
+
+          <ol class="concepts">
+            <li class="concept concept--lit">
+              <a class="concept__face" href="#/demo-1">
+                <div class="concept__glow" aria-hidden="true"></div>
+                <div class="concept__meta">
+                  <span class="concept__index">Demo 1</span>
+                  <span class="status status--live">
+                    <span class="status__dot" aria-hidden="true"></span>
+                    Live
+                  </span>
+                </div>
+                <div class="concept__body">
+                  <h2 class="concept__name">Companion</h2>
+                  <p class="concept__desc">
+                    MADA rides alongside the analytics dashboard. Launch it from
+                    the corner and the agent grows out of the button into a
+                    modal over your data — voice, chat, and history included.
+                  </p>
+                </div>
+                <div class="concept__cta">
+                  Open demo 1
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h13M12 6l6 6-6 6" />
+                  </svg>
+                </div>
+              </a>
+            </li>
+
+            <li class="concept concept--lit">
+              <a class="concept__face" href="#/demo-2">
+                <div class="concept__glow" aria-hidden="true"></div>
+                <div class="concept__meta">
+                  <span class="concept__index">Demo 2</span>
+                  <span class="status status--live">
+                    <span class="status__dot" aria-hidden="true"></span>
+                    Live
+                  </span>
+                </div>
+                <div class="concept__body">
+                  <h2 class="concept__name">Drawer</h2>
+                  <p class="concept__desc">
+                    The same dashboard, the same agent — but MADA slides in
+                    against the right edge and pushes the board over rather than
+                    covering it, so you can keep working while it answers.
+                  </p>
+                </div>
+                <div class="concept__cta">
+                  Open demo 2
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h13M12 6l6 6-6 6" />
+                  </svg>
+                </div>
+              </a>
+            </li>
+          </ol>
+        </main>
+
+        <footer class="foot">
+          <span>Internal preview</span>
+          <span class="foot__dim">Runs entirely in the browser</span>
+        </footer>
+      </div>
     </div>
 
-    <div class="shell">
-      <header class="rail">
-        <span class="rail__mark">MADA</span>
-        <span class="rail__rule"></span>
-        <span class="rail__label">Agent UI</span>
-        <span class="rail__count">2 concepts</span>
-      </header>
+    <!-- ================================================================
+         Demo view — one dashboard for both concepts. The route decides
+         which agent styling applies and how the panel is announced.
+         ================================================================ -->
+    <div class="view" id="view-demo" hidden>
+      <div class="app">
+        <!-- ---------- Side navigation ---------- -->
+        <nav class="sidenav" aria-label="Sections">
+          <div class="sidenav__brand">
+            <span class="sidenav__mark" aria-hidden="true"></span>
+            <span class="sidenav__wordmark">MADA</span>
+          </div>
 
-      <main class="stage">
-        <div class="intro">
-          <p class="eyebrow">Concept gallery</p>
-          <h1 class="title">Pick a concept.</h1>
-          <p class="lede">
-            One agent, two interfaces. Open a demo to try it in the browser.
+          <ul class="navskel" aria-hidden="true">
+            <li class="navskel__row is-current">
+              <span class="sk sk--icon"></span>
+              <span class="sk sk--text" style="width: 58%"></span>
+            </li>
+            <li class="navskel__row">
+              <span class="sk sk--icon"></span>
+              <span class="sk sk--text" style="width: 45%"></span>
+            </li>
+            <li class="navskel__row">
+              <span class="sk sk--icon"></span>
+              <span class="sk sk--text" style="width: 62%"></span>
+            </li>
+            <li class="navskel__row">
+              <span class="sk sk--icon"></span>
+              <span class="sk sk--text" style="width: 40%"></span>
+            </li>
+            <li class="navskel__row">
+              <span class="sk sk--icon"></span>
+              <span class="sk sk--text" style="width: 52%"></span>
+            </li>
+          </ul>
+
+          <div class="sidenav__foot" aria-hidden="true">
+            <div class="account-skel">
+              <span class="sk sk--avatar"></span>
+              <span class="account-skel__lines">
+                <span class="sk sk--text" style="width: 70%"></span>
+                <span class="sk sk--text sk--sm" style="width: 45%"></span>
+              </span>
+            </div>
+          </div>
+        </nav>
+
+        <!-- ---------- Main ---------- -->
+        <main class="main">
+          <h1 class="sr-only">Overview</h1>
+          <p class="sr-only" role="status">
+            Dashboard placeholder. This concept demonstrates the MADA agent
+            launcher, so the widgets stay in their loading state.
           </p>
+
+          <div class="board" aria-hidden="true">
+            <header class="topbar">
+              <div class="topbar__titles">
+                <span class="sk sk--text sk--sm" style="width: 5.5rem"></span>
+                <span class="sk sk--title"></span>
+              </div>
+              <div class="topbar__tools">
+                <span class="sk sk--control"></span>
+                <span class="sk sk--text sk--sm" style="width: 6rem"></span>
+              </div>
+            </header>
+
+            <!-- Stat tiles -->
+            <section class="tiles">
+              <article class="widget tile">
+                <span class="sk sk--text sk--sm" style="width: 42%"></span>
+                <span class="sk sk--value"></span>
+                <span class="sk sk--text sk--sm" style="width: 60%"></span>
+                <span class="sk sk--spark"></span>
+              </article>
+              <article class="widget tile">
+                <span class="sk sk--text sk--sm" style="width: 55%"></span>
+                <span class="sk sk--value"></span>
+                <span class="sk sk--text sk--sm" style="width: 48%"></span>
+                <span class="sk sk--spark"></span>
+              </article>
+              <article class="widget tile">
+                <span class="sk sk--text sk--sm" style="width: 36%"></span>
+                <span class="sk sk--value"></span>
+                <span class="sk sk--text sk--sm" style="width: 64%"></span>
+                <span class="sk sk--spark"></span>
+              </article>
+              <article class="widget tile">
+                <span class="sk sk--text sk--sm" style="width: 60%"></span>
+                <span class="sk sk--value"></span>
+                <span class="sk sk--text sk--sm" style="width: 40%"></span>
+                <span class="sk sk--spark"></span>
+              </article>
+            </section>
+
+            <!-- Charts -->
+            <section class="charts">
+              <article class="widget">
+                <div class="widget__head">
+                  <span class="sk sk--text" style="width: 9rem"></span>
+                  <span class="sk sk--text sk--sm" style="width: 5rem"></span>
+                </div>
+                <!-- Column chart skeleton -->
+                <div class="plot plot--columns">
+                  <span class="sk sk--col" style="height: 46%"></span>
+                  <span class="sk sk--col" style="height: 62%"></span>
+                  <span class="sk sk--col" style="height: 38%"></span>
+                  <span class="sk sk--col" style="height: 71%"></span>
+                  <span class="sk sk--col" style="height: 55%"></span>
+                  <span class="sk sk--col" style="height: 84%"></span>
+                  <span class="sk sk--col" style="height: 49%"></span>
+                  <span class="sk sk--col" style="height: 66%"></span>
+                  <span class="sk sk--col" style="height: 92%"></span>
+                  <span class="sk sk--col" style="height: 58%"></span>
+                  <span class="sk sk--col" style="height: 74%"></span>
+                  <span class="sk sk--col" style="height: 44%"></span>
+                </div>
+                <div class="plot__axis">
+                  <span class="sk sk--text sk--sm" style="width: 2rem"></span>
+                  <span class="sk sk--text sk--sm" style="width: 2rem"></span>
+                  <span class="sk sk--text sk--sm" style="width: 2rem"></span>
+                </div>
+              </article>
+
+              <article class="widget">
+                <div class="widget__head">
+                  <span class="sk sk--text" style="width: 7.5rem"></span>
+                </div>
+                <!-- Bar list skeleton -->
+                <div class="plot plot--bars">
+                  <div class="barrow">
+                    <span
+                      class="sk sk--text sk--sm"
+                      style="width: 3.5rem"
+                    ></span>
+                    <span class="sk sk--bar" style="width: 86%"></span>
+                  </div>
+                  <div class="barrow">
+                    <span class="sk sk--text sk--sm" style="width: 3rem"></span>
+                    <span class="sk sk--bar" style="width: 54%"></span>
+                  </div>
+                  <div class="barrow">
+                    <span
+                      class="sk sk--text sk--sm"
+                      style="width: 4.5rem"
+                    ></span>
+                    <span class="sk sk--bar" style="width: 31%"></span>
+                  </div>
+                  <div class="barrow">
+                    <span
+                      class="sk sk--text sk--sm"
+                      style="width: 3.25rem"
+                    ></span>
+                    <span class="sk sk--bar" style="width: 18%"></span>
+                  </div>
+                </div>
+              </article>
+            </section>
+
+            <!-- Table -->
+            <section class="widget">
+              <div class="widget__head">
+                <span class="sk sk--text" style="width: 10rem"></span>
+              </div>
+              <div class="rows">
+                <div class="row row--head">
+                  <span class="sk sk--text sk--sm" style="width: 4rem"></span>
+                  <span class="sk sk--text sk--sm" style="width: 3.5rem"></span>
+                  <span class="sk sk--text sk--sm" style="width: 3rem"></span>
+                  <span class="sk sk--text sk--sm" style="width: 3.5rem"></span>
+                </div>
+                <div class="row">
+                  <span class="sk sk--text" style="width: 78%"></span>
+                  <span class="sk sk--text" style="width: 55%"></span>
+                  <span class="sk sk--chip"></span>
+                  <span class="sk sk--text" style="width: 48%"></span>
+                </div>
+                <div class="row">
+                  <span class="sk sk--text" style="width: 64%"></span>
+                  <span class="sk sk--text" style="width: 42%"></span>
+                  <span class="sk sk--chip"></span>
+                  <span class="sk sk--text" style="width: 60%"></span>
+                </div>
+                <div class="row">
+                  <span class="sk sk--text" style="width: 85%"></span>
+                  <span class="sk sk--text" style="width: 61%"></span>
+                  <span class="sk sk--chip"></span>
+                  <span class="sk sk--text" style="width: 38%"></span>
+                </div>
+                <div class="row">
+                  <span class="sk sk--text" style="width: 58%"></span>
+                  <span class="sk sk--text" style="width: 47%"></span>
+                  <span class="sk sk--chip"></span>
+                  <span class="sk sk--text" style="width: 52%"></span>
+                </div>
+                <div class="row">
+                  <span class="sk sk--text" style="width: 72%"></span>
+                  <span class="sk sk--text" style="width: 36%"></span>
+                  <span class="sk sk--chip"></span>
+                  <span class="sk sk--text" style="width: 44%"></span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+
+      <!-- ---------- Agent launcher ---------- -->
+      <button
+        type="button"
+        id="agent-fab"
+        class="fab"
+        aria-label="Ask MADA"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+      >
+        <svg class="fab__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 3.2 13.9 9a3.2 3.2 0 0 0 2.1 2.1l5.8 1.9-5.8 1.9A3.2 3.2 0 0 0 13.9 17L12 22.8 10.1 17A3.2 3.2 0 0 0 8 14.9L2.2 13 8 11.1A3.2 3.2 0 0 0 10.1 9z"
+          />
+        </svg>
+        <span class="fab__label">Ask MADA</span>
+      </button>
+
+      <!-- ---------- Agent surface ---------- -->
+      <div id="agent-overlay" class="overlay" inert>
+        <div class="overlay__scrim" id="agent-scrim"></div>
+
+        <div
+          id="agent-modal"
+          class="agent"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="agent-modal-title"
+        >
+          <div class="agent__chrome">
+            <h2 class="agent__title" id="agent-modal-title">MADA</h2>
+            <button
+              type="button"
+              id="agent-close"
+              class="agent__close"
+              aria-label="Close MADA"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+          <div class="agent__frame">
+            <iframe
+              id="agent-iframe"
+              class="agent__iframe"
+              title="MADA agent"
+            ></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         Agent view — MADA itself. Stands alone at #/agent, and is what
+         the demos above load into their frame.
+         ================================================================ -->
+    <div class="view" id="view-agent" hidden>
+      <div class="page">
+        <div class="background" aria-hidden="true">
+          <div class="background__pattern"></div>
         </div>
 
-        <ol class="concepts">
-          <li class="concept concept--lit">
-            <a class="concept__face" href="demo-1.html">
-              <div class="concept__glow" aria-hidden="true"></div>
-              <div class="concept__meta">
-                <span class="concept__index">Demo 1</span>
-                <span class="status status--live">
-                  <span class="status__dot" aria-hidden="true"></span>
-                  Live
-                </span>
-              </div>
-              <div class="concept__body">
-                <h2 class="concept__name">Companion</h2>
-                <p class="concept__desc">
-                  MADA rides alongside the analytics dashboard. Launch it from
-                  the corner and the agent grows out of the button into a modal
-                  over your data — voice, chat, and history included.
-                </p>
-              </div>
-              <div class="concept__cta">
-                Open demo 1
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.75"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h13M12 6l6 6-6 6" />
-                </svg>
-              </div>
-            </a>
-          </li>
+        <main class="content">
+          <header class="content__hero">
+            <h1 class="heading">How can I help you today Musaab?</h1>
+          </header>
 
-          <li class="concept concept--lit">
-            <a class="concept__face" href="demo-2.html">
-              <div class="concept__glow" aria-hidden="true"></div>
-              <div class="concept__meta">
-                <span class="concept__index">Demo 2</span>
-                <span class="status status--live">
-                  <span class="status__dot" aria-hidden="true"></span>
-                  Live
-                </span>
-              </div>
-              <div class="concept__body">
-                <h2 class="concept__name">Drawer</h2>
-                <p class="concept__desc">
-                  The same dashboard, the same agent — but MADA slides in
-                  against the right edge and pushes the board over rather than
-                  covering it, so you can keep working while it answers.
-                </p>
-              </div>
-              <div class="concept__cta">
-                Open demo 2
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.75"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h13M12 6l6 6-6 6" />
-                </svg>
-              </div>
-            </a>
-          </li>
-        </ol>
-      </main>
+          <div class="voice-wave" aria-hidden="true">
+            <canvas id="voice-glow-canvas"></canvas>
+          </div>
 
-      <footer class="foot">
-        <span>Internal preview</span>
-        <span class="foot__dim">Runs entirely in the browser</span>
-      </footer>
+          <div class="chat-session">
+            <div
+              id="messages"
+              class="messages"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+            ></div>
+
+            <div class="chat-area">
+              <div class="chat-glow" aria-hidden="true"></div>
+
+              <div class="scope">
+                <div class="scope__bar" id="scope-bar"></div>
+              </div>
+
+              <form id="chat-input" class="chat-box">
+                <div class="chat-box__input-wrap">
+                  <textarea
+                    id="chatinput"
+                    class="chat-box__input"
+                    rows="1"
+                    placeholder=" "
+                    aria-label="Chat input"
+                  ></textarea>
+                  <span
+                    id="chat-placeholder"
+                    class="chat-box__placeholder"
+                    aria-hidden="true"
+                  >
+                    <span>Ask MADA </span><span id="typed-phrase"></span
+                    ><span
+                      class="chat-box__placeholder-cursor"
+                      aria-hidden="true"
+                    ></span>
+                  </span>
+                </div>
+
+                <div class="chat-box__toolbar">
+                  <button
+                    type="button"
+                    id="mic-btn"
+                    class="icon-btn"
+                    aria-label="Start voice recording"
+                    aria-pressed="false"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M11.25 21v-2.286a8.25 8.25 0 0 1-7.5-8.214.75.75 0 0 1 1.5 0 6.75 6.75 0 0 0 13.5 0 .75.75 0 0 1 1.5 0 8.25 8.25 0 0 1-7.5 8.214V21a.75.75 0 0 1-1.5 0m4-14a3.25 3.25 0 0 0-6.5 0v3a3.25 3.25 0 0 0 6.5 0zm1.5 3a4.75 4.75 0 1 1-9.5 0V7a4.75 4.75 0 0 1 9.5 0z"
+                      />
+                    </svg>
+                  </button>
+
+                  <button
+                    type="submit"
+                    id="chatinput-send-message-button"
+                    class="send-btn"
+                    disabled
+                    aria-label="Send message"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M11 19V7.415l-3.293 3.293a1 1 0 1 1-1.414-1.414l5-5 .074-.067a1 1 0 0 1 1.34.067l5 5a1 1 0 1 1-1.414 1.414L13 7.415V19a1 1 0 1 1-2 0"
+                      />
+                    </svg>
+                    <span class="sr-only">Send message</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <nav class="history-rail" aria-label="Chat navigation">
+        <div class="history-rail__top">
+          <button
+            type="button"
+            id="history-toggle"
+            class="history-rail__btn"
+            aria-label="Open chat history"
+            aria-expanded="false"
+            aria-controls="history-panel"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.75"
+              aria-hidden="true"
+            >
+              <rect x="4" y="5" width="16" height="14" rx="2" />
+              <path stroke-linecap="round" d="M9 5v14" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            id="new-chat-btn"
+            class="history-rail__btn"
+            aria-label="New chat"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.75"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 5v14M5 12h14"
+              />
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+      <div id="history-backdrop" class="history-backdrop" aria-hidden="true"></div>
+
+      <aside
+        id="history-panel"
+        class="history-panel"
+        aria-label="Chat history"
+        aria-hidden="true"
+      >
+        <div class="history-panel__header">
+          <span class="history-panel__brand">MADA</span>
+          <h2 class="history-panel__title">Recents</h2>
+        </div>
+        <ul id="history-list" class="history-list"></ul>
+      </aside>
     </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        /* ==============================================================
+           Agent launcher
+
+           Both concepts open the same agent in the same overlay; only the
+           CSS decides whether it arrives as a modal or a drawer. `aim`
+           lets a concept write geometry (demo 1 points the panel at the
+           button) before the opening frame is committed.
+           ============================================================== */
+        function createAgentLauncher() {
+          const fab = document.getElementById("agent-fab");
+          const overlay = document.getElementById("agent-overlay");
+          const modal = document.getElementById("agent-modal");
+          const scrim = document.getElementById("agent-scrim");
+          const closeBtn = document.getElementById("agent-close");
+          const frame = document.getElementById("agent-iframe");
+
+          let lastFocus = null;
+          let aim = null;
+
+          const isOpen = () => overlay.classList.contains("is-open");
+          const measure = () => aim && aim({ fab, modal });
+
+          const open = () => {
+            if (isOpen()) return;
+            lastFocus = document.activeElement;
+
+            // Load on first open so the agent's own intro plays as the
+            // panel lands.
+            if (!frame.getAttribute("src")) frame.src = frame.dataset.src;
+
+            overlay.removeAttribute("inert");
+            measure();
+            // Commit the closed state before releasing it, or the browser
+            // coalesces both into one frame and nothing animates.
+            void modal.offsetWidth;
+
+            overlay.classList.add("is-open");
+            document.body.classList.add("agent-open");
+            fab.setAttribute("aria-expanded", "true");
+            closeBtn.focus({ preventScroll: true });
+          };
+
+          const close = () => {
+            if (!isOpen()) return;
+            measure();
+            overlay.classList.remove("is-open");
+            document.body.classList.remove("agent-open");
+            fab.setAttribute("aria-expanded", "false");
+
+            // Focus must leave the subtree before `inert` lands on it.
+            // Anything that is gone, or was never really focused (body),
+            // hands back to the launcher rather than dropping focus to the
+            // top of the page.
+            const returnTo =
+              lastFocus instanceof HTMLElement &&
+              lastFocus !== document.body &&
+              lastFocus.isConnected
+                ? lastFocus
+                : fab;
+            returnTo.focus({ preventScroll: true });
+
+            const done = () => overlay.setAttribute("inert", "");
+            overlay.addEventListener("transitionend", done, { once: true });
+            setTimeout(done, 800); // transitionend can be skipped on a hidden tab
+          };
+
+          /*
+           * Leaving the demo takes the panel back to its resting state with
+           * no animation to watch — and drops the frame, so the next concept
+           * loads its own agent fresh on first open.
+           */
+          const reset = () => {
+            overlay.classList.remove("is-open");
+            overlay.setAttribute("inert", "");
+            document.body.classList.remove("agent-open");
+            fab.setAttribute("aria-expanded", "false");
+            frame.removeAttribute("src");
+            lastFocus = null;
+          };
+
+          const configure = (concept) => {
+            reset();
+            // Demo 1 covers the board, demo 2 sits beside it and leaves it
+            // usable — so only one of them is a modal dialog.
+            modal.setAttribute("aria-modal", String(!!concept.modal));
+            frame.dataset.src = concept.agent;
+            aim = concept.aim || null;
+            measure();
+          };
+
+          fab.addEventListener("click", open);
+          closeBtn.addEventListener("click", close);
+          scrim.addEventListener("click", close);
+
+          document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && isOpen()) close();
+          });
+
+          // The agent runs in an iframe, so Escape inside it never reaches us.
+          window.addEventListener("message", (e) => {
+            if (e.source === frame.contentWindow && e.data === "mada:close") {
+              close();
+            }
+          });
+
+          window.addEventListener("resize", () => {
+            if (!isOpen()) measure();
+          });
+
+          return { configure, reset };
+        }
+
+        /* ==============================================================
+           Concept 1 — the panel flies out of the launcher and settles
+           centred.
+
+           Map the panel onto the launcher. The panel is centred by the
+           overlay, so its centre is the viewport centre — computing from
+           that beats measuring a transformed box, which reports the
+           already-scaled rect.
+           ============================================================== */
+        function aimAtFab({ fab, modal }) {
+          const width = modal.offsetWidth;
+          if (!width) return; // laid out only while the demo view is on screen
+
+          const f = fab.getBoundingClientRect();
+          modal.style.setProperty(
+            "--fab-dx",
+            `${f.left + f.width / 2 - window.innerWidth / 2}px`,
+          );
+          modal.style.setProperty(
+            "--fab-dy",
+            `${f.top + f.height / 2 - window.innerHeight / 2}px`,
+          );
+          modal.style.setProperty(
+            "--fab-scale",
+            String(Math.max(f.width / width, 0.04)),
+          );
+        }
+
+        /* ==============================================================
+           The agent
+
+           Everything below to the router is MADA itself: the chat, the
+           voice glow, the history panel and the scope bar. It binds
+           nothing until the #/agent route is rendered, so on the gallery
+           and the demos it stays asleep — in those views the agent is
+           running in the frame's own document, not this one.
+           ============================================================== */
+
+        /* ---------- DOM references ---------- */
+
+        const page = document.querySelector(".page");
+        const input = document.getElementById("chatinput");
+        const sendBtn = document.getElementById(
+          "chatinput-send-message-button",
+        );
+        const placeholder = document.getElementById("chat-placeholder");
+        const typedPhrase = document.getElementById("typed-phrase");
+        const chatForm = document.getElementById("chat-input");
+        const micBtn = document.getElementById("mic-btn");
+        const content = document.querySelector(".content");
+        const heading = document.querySelector(".heading");
+        const chatArea = document.querySelector(".chat-area");
+        const chatSession = document.querySelector(".chat-session");
+        const messagesEl = document.getElementById("messages");
+        const voiceWave = document.querySelector(".voice-wave");
+        const voiceGlowCanvas = document.getElementById("voice-glow-canvas");
+        const historyToggle = document.getElementById("history-toggle");
+        const newChatBtn = document.getElementById("new-chat-btn");
+        const historyBackdrop = document.getElementById("history-backdrop");
+        const historyPanel = document.getElementById("history-panel");
+        const historyList = document.getElementById("history-list");
+
+        const prefersReducedMotion = window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
+
+        /* ---------- Placeholder typing animation ---------- */
+
+        const PHRASES = [
+          "to generate a report for you ...",
+          "to give you insights ...",
+          "to summarise data ...",
+        ];
+
+        let phraseIndex = 0;
+        let charIndex = 0;
+        let isDeleting = false;
+        let typingTimer = null;
+        let animationPaused = false;
+
+        function scheduleTypingTick(delay) {
+          clearTimeout(typingTimer);
+          if (animationPaused) return;
+          typingTimer = setTimeout(runTypingTick, delay);
+        }
+
+        function runTypingTick() {
+          if (animationPaused) return;
+
+          const phrase = PHRASES[phraseIndex];
+
+          if (!isDeleting) {
+            charIndex += 1;
+            typedPhrase.textContent = phrase.slice(0, charIndex);
+
+            if (charIndex === phrase.length) {
+              isDeleting = true;
+              scheduleTypingTick(2200);
+              return;
+            }
+
+            scheduleTypingTick(45 + Math.random() * 35);
+            return;
+          }
+
+          charIndex -= 1;
+          typedPhrase.textContent = phrase.slice(0, charIndex);
+
+          if (charIndex === 0) {
+            isDeleting = false;
+            phraseIndex = (phraseIndex + 1) % PHRASES.length;
+            scheduleTypingTick(350);
+            return;
+          }
+
+          scheduleTypingTick(28);
+        }
+
+        function updatePlaceholderVisibility() {
+          if (isChatActive) {
+            placeholder.classList.add("is-hidden");
+            return;
+          }
+
+          const visible =
+            !input.value.trim() && document.activeElement !== input;
+          placeholder.classList.toggle("is-hidden", !visible);
+
+          if (!visible) {
+            animationPaused = true;
+            clearTimeout(typingTimer);
+          } else if (animationPaused) {
+            animationPaused = false;
+            scheduleTypingTick(isDeleting ? 400 : 600);
+          }
+        }
+
+        /* ---------- Chat session ---------- */
+
+        const DEMO_RESPONSES = [
+          "Based on your latest data, engagement is up 12% quarter over quarter. The strongest lift is coming from returning users.",
+          "Here's a quick summary: revenue is trending up, churn is down, and your APAC segment is outperforming the rest.",
+          "I can generate a full report from this — want me to break it down by region, product line, or time period?",
+          "Three things stand out: conversion improved on mobile, support tickets dropped 8%, and average order value rose slightly.",
+          "From what I'm seeing, your top opportunity is doubling down on the channels that drove last month's spike.",
+          "I've pulled the key metrics. Overall health looks solid, with one area worth watching in the enterprise funnel.",
+        ];
+
+        const CHAT_TRANSITION_MS = 1150;
+        const CHAT_INPUT_PLACEHOLDER = "Write a message...";
+        const CHAT_MOVE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+        let isChatActive = false;
+        let isAiResponding = false;
+        let typingIndicatorEl = null;
+        let activeHistoryId = null;
+        let isHistoryOpen = false;
+
+        function syncSendButton() {
+          const hasText = input.value.trim().length > 0;
+          const canSend = hasText && !isAiResponding;
+          sendBtn.disabled = !canSend;
+          sendBtn.classList.toggle("is-active", canSend);
+        }
+
+        function focusChatInput() {
+          if (!isChatActive) return;
+          input.focus({ preventScroll: true });
+        }
+
+        function handleChatInputBlur() {
+          if (!isChatActive) return;
+
+          requestAnimationFrame(() => {
+            const active = document.activeElement;
+            if (chatForm.contains(active)) return;
+            focusChatInput();
+          });
+        }
+
+        function escapeHtml(text) {
+          return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function scrollMessagesToBottom() {
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function appendUserMessage(text) {
+          const message = document.createElement("div");
+          message.className = "message message--user";
+          message.innerHTML = `<div class="message__bubble">${escapeHtml(text)}</div>`;
+          messagesEl.appendChild(message);
+          scrollMessagesToBottom();
+        }
+
+        function appendAssistantMessage(text) {
+          const message = document.createElement("div");
+          message.className = "message message--assistant";
+          message.innerHTML = `<div class="message__bubble">${escapeHtml(text)}</div>`;
+          messagesEl.appendChild(message);
+          scrollMessagesToBottom();
+        }
+
+        function clearMessages() {
+          messagesEl.innerHTML = "";
+        }
+
+        function cancelAiResponse() {
+          isAiResponding = false;
+          removeTypingIndicator();
+          syncSendButton();
+        }
+
+        function showTypingIndicator() {
+          typingIndicatorEl = document.createElement("div");
+          typingIndicatorEl.className =
+            "message message--assistant message--typing";
+          typingIndicatorEl.innerHTML = `
+            <div class="message__bubble" aria-label="MADA is typing">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          `;
+          messagesEl.appendChild(typingIndicatorEl);
+          scrollMessagesToBottom();
+          return typingIndicatorEl;
+        }
+
+        function removeTypingIndicator() {
+          if (typingIndicatorEl) {
+            typingIndicatorEl.remove();
+            typingIndicatorEl = null;
+          }
+        }
+
+        function getRandomResponse() {
+          return DEMO_RESPONSES[
+            Math.floor(Math.random() * DEMO_RESPONSES.length)
+          ];
+        }
+
+        function streamAssistantMessage(text) {
+          const message = document.createElement("div");
+          message.className = "message message--assistant";
+          const bubble = document.createElement("div");
+          bubble.className = "message__bubble";
+          message.appendChild(bubble);
+          messagesEl.appendChild(message);
+          scrollMessagesToBottom();
+
+          let index = 0;
+          const baseDelay = prefersReducedMotion ? 0 : 14;
+
+          function typeNextChar() {
+            if (index < text.length) {
+              index += 1;
+              bubble.textContent = text.slice(0, index);
+              scrollMessagesToBottom();
+              const delay = prefersReducedMotion
+                ? 0
+                : baseDelay + Math.random() * 16;
+              setTimeout(typeNextChar, delay);
+              return;
+            }
+
+            isAiResponding = false;
+            syncSendButton();
+            input.focus();
+          }
+
+          if (prefersReducedMotion) {
+            bubble.textContent = text;
+            isAiResponding = false;
+            syncSendButton();
+            input.focus();
+            scrollMessagesToBottom();
+            return;
+          }
+
+          typeNextChar();
+        }
+
+        function simulateAiResponse() {
+          isAiResponding = true;
+          syncSendButton();
+          focusChatInput();
+          showTypingIndicator();
+
+          const thinkDelay = prefersReducedMotion
+            ? 200
+            : 900 + Math.random() * 1100;
+
+          setTimeout(() => {
+            removeTypingIndicator();
+            streamAssistantMessage(getRandomResponse());
+          }, thinkDelay);
+        }
+
+        function finishChatSlide() {
+          chatSession.style.transition = "";
+          chatSession.style.transform = "";
+          chatSession.style.willChange = "";
+          page.classList.remove("is-chat-entering");
+        }
+
+        function animateChatSlide(deltaY) {
+          if (prefersReducedMotion || Math.abs(deltaY) < 2) {
+            finishChatSlide();
+            return;
+          }
+
+          chatSession.style.willChange = "transform";
+          chatSession.style.transform = `translate3d(0, ${deltaY}px, 0)`;
+          chatSession.style.transition = "none";
+          chatSession.getBoundingClientRect();
+
+          chatSession.style.transition = `transform ${CHAT_TRANSITION_MS}ms ${CHAT_MOVE_EASE}`;
+          chatSession.style.transform = "translate3d(0, 0, 0)";
+
+          chatSession.addEventListener(
+            "transitionend",
+            function onSlideEnd(event) {
+              if (event.propertyName !== "transform") return;
+              finishChatSlide();
+              chatSession.removeEventListener("transitionend", onSlideEnd);
+            },
+          );
+        }
+
+        function enterChatMode({ skipAnimation = false } = {}) {
+          if (isChatActive) return;
+
+          isChatActive = true;
+          animationPaused = true;
+          clearTimeout(typingTimer);
+          placeholder.classList.add("is-hidden");
+          input.placeholder = CHAT_INPUT_PLACEHOLDER;
+          page.classList.add("is-chat-active");
+          chatArea.classList.add("glow-settled");
+
+          if (skipAnimation) {
+            requestAnimationFrame(() => focusChatInput());
+            return;
+          }
+
+          const startRect = chatSession.getBoundingClientRect();
+          page.classList.add("is-chat-entering");
+
+          const endRect = chatSession.getBoundingClientRect();
+          animateChatSlide(startRect.top - endRect.top);
+
+          requestAnimationFrame(() => focusChatInput());
+        }
+
+        function resizeChatInput() {
+          input.style.height = "auto";
+
+          const maxHeight = parseFloat(getComputedStyle(input).maxHeight);
+          const scrollHeight = input.scrollHeight;
+          const nextHeight =
+            Number.isFinite(maxHeight) && maxHeight > 0
+              ? Math.min(scrollHeight, maxHeight)
+              : scrollHeight;
+
+          input.style.height = `${nextHeight}px`;
+          input.style.overflowY =
+            scrollHeight > nextHeight + 1 ? "auto" : "hidden";
+        }
+
+        function handleInput() {
+          resizeChatInput();
+          syncSendButton();
+          updatePlaceholderVisibility();
+        }
+
+        function handleKeydown(e) {
+          if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+
+          e.preventDefault();
+          if (!sendBtn.disabled) {
+            chatForm.requestSubmit();
+          }
+        }
+
+        function handleSubmit(e) {
+          e.preventDefault();
+
+          const text = input.value.trim();
+          if (!text || isAiResponding) return;
+
+          const isFirstMessage = !isChatActive;
+
+          appendUserMessage(text);
+          input.value = "";
+          resizeChatInput();
+          syncSendButton();
+          updatePlaceholderVisibility();
+
+          if (isFirstMessage) {
+            activeHistoryId = null;
+            renderHistoryList();
+            enterChatMode();
+            setTimeout(simulateAiResponse, CHAT_TRANSITION_MS);
+          } else {
+            simulateAiResponse();
+          }
+
+          focusChatInput();
+        }
+
+        /* ---------- Chat history ---------- */
+
+        const DEMO_CHAT_HISTORY = [
+          {
+            id: "q4-engagement",
+            title: "Q4 Engagement Report",
+            messages: [
+              {
+                role: "user",
+                text: "Summarise our Q4 engagement metrics.",
+              },
+              {
+                role: "assistant",
+                text: "Engagement rose 12% quarter over quarter. Returning users drove most of the lift, especially on mobile.",
+              },
+              {
+                role: "user",
+                text: "Which region performed best?",
+              },
+              {
+                role: "assistant",
+                text: "APAC led with 18% growth, followed by EMEA at 9%. North America was steady at 4%.",
+              },
+            ],
+          },
+          {
+            id: "revenue-snapshot",
+            title: "Revenue Snapshot",
+            messages: [
+              {
+                role: "user",
+                text: "Give me a quick revenue overview for this month.",
+              },
+              {
+                role: "assistant",
+                text: "Revenue is up 7% month over month. Subscription renewals improved and average order value ticked up slightly.",
+              },
+            ],
+          },
+          {
+            id: "churn-analysis",
+            title: "Churn Analysis",
+            messages: [
+              {
+                role: "user",
+                text: "Why did churn spike last week?",
+              },
+              {
+                role: "assistant",
+                text: "Most cancellations came from the starter plan after the pricing email. Enterprise churn stayed flat.",
+              },
+              {
+                role: "user",
+                text: "Any quick wins to reduce it?",
+              },
+              {
+                role: "assistant",
+                text: "A targeted retention offer for starter users who opened the email but did not upgrade could help within days.",
+              },
+            ],
+          },
+          {
+            id: "apac-expansion",
+            title: "APAC Expansion Plan",
+            messages: [
+              {
+                role: "user",
+                text: "Draft talking points for our APAC expansion review.",
+              },
+              {
+                role: "assistant",
+                text: "Lead with market size, highlight local partnerships, and show early conversion data from the Singapore pilot.",
+              },
+            ],
+          },
+          {
+            id: "support-trends",
+            title: "Support Ticket Trends",
+            messages: [
+              {
+                role: "user",
+                text: "What are the top support themes this week?",
+              },
+              {
+                role: "assistant",
+                text: "Billing questions are down 8%. Onboarding setup and API integration requests are the two rising categories.",
+              },
+            ],
+          },
+          {
+            id: "board-deck",
+            title: "Board Deck Outline",
+            messages: [
+              {
+                role: "user",
+                text: "Outline a board deck for next Friday.",
+              },
+              {
+                role: "assistant",
+                text: "Open with KPIs, cover product milestones, then risks. Close with Q2 priorities and resource asks.",
+              },
+            ],
+          },
+        ];
+
+        function renderHistoryList() {
+          historyList.innerHTML = DEMO_CHAT_HISTORY.map(
+            (chat) => `
+              <li class="history-item${chat.id === activeHistoryId ? " is-active" : ""}">
+                <button
+                  type="button"
+                  class="history-item__btn"
+                  data-history-id="${chat.id}"
+                >
+                  ${escapeHtml(chat.title)}
+                </button>
+              </li>
+            `,
+          ).join("");
+        }
+
+        function setHistoryOpen(open) {
+          isHistoryOpen = open;
+          document.body.classList.toggle("is-history-open", open);
+          historyPanel.classList.toggle("is-open", open);
+          historyBackdrop.classList.toggle("is-visible", open);
+          historyToggle.classList.toggle("is-active", open);
+          historyToggle.setAttribute("aria-expanded", String(open));
+          historyPanel.setAttribute("aria-hidden", String(!open));
+          historyBackdrop.setAttribute("aria-hidden", String(!open));
+          historyToggle.setAttribute(
+            "aria-label",
+            open ? "Close chat history" : "Open chat history",
+          );
+        }
+
+        function resetToLanding() {
+          cancelAiResponse();
+          clearMessages();
+          activeHistoryId = null;
+          isChatActive = false;
+
+          if (isListening) {
+            stopListening();
+          }
+
+          page.classList.remove("is-chat-active", "is-chat-entering");
+          chatArea.classList.remove(
+            "glow-settled",
+            "is-listening",
+            "is-glow-converging",
+            "is-glow-expanding",
+          );
+          finishChatSlide();
+
+          placeholder.classList.remove("is-hidden");
+          input.placeholder = " ";
+          input.value = "";
+          resizeChatInput();
+          syncSendButton();
+          animationPaused = false;
+          scheduleTypingTick(600);
+          updatePlaceholderVisibility();
+          renderHistoryList();
+        }
+
+        function startNewChat() {
+          closeHistoryPanel();
+          resetToLanding();
+          input.focus();
+        }
+
+        function openHistoryPanel() {
+          renderHistoryList();
+          setHistoryOpen(true);
+        }
+
+        function closeHistoryPanel() {
+          setHistoryOpen(false);
+        }
+
+        function toggleHistoryPanel() {
+          if (isHistoryOpen) {
+            closeHistoryPanel();
+          } else {
+            openHistoryPanel();
+          }
+        }
+
+        function loadChatFromHistory(chatId) {
+          const chat = DEMO_CHAT_HISTORY.find((item) => item.id === chatId);
+          if (!chat) return;
+
+          cancelAiResponse();
+          clearMessages();
+          activeHistoryId = chat.id;
+
+          if (!isChatActive) {
+            enterChatMode({ skipAnimation: true });
+          }
+
+          chat.messages.forEach((message) => {
+            if (message.role === "user") {
+              appendUserMessage(message.text);
+            } else {
+              appendAssistantMessage(message.text);
+            }
+          });
+
+          renderHistoryList();
+          closeHistoryPanel();
+          resizeChatInput();
+          focusChatInput();
+        }
+
+        function handleHistoryListClick(event) {
+          const button = event.target.closest("[data-history-id]");
+          if (!button) return;
+          loadChatFromHistory(button.dataset.historyId);
+        }
+
+        function handleHistoryKeydown(event) {
+          if (event.key === "Escape" && isHistoryOpen) {
+            closeHistoryPanel();
+          }
+        }
+
+        /* ---------- Voice recording & glow animation ---------- */
+
+        const CONVERGE_MS = 1100;
+        const EXPAND_MS = 1000;
+        const GLOW_PAD = { x: 36, y: 52 };
+        const WAVE_POSITION_RATIO = 0.74;
+        const WAVE_WIDTH_RATIO = 0.78;
+
+        let audioContext = null;
+        let analyser = null;
+        let mediaStream = null;
+        let isListening = false;
+        let glowRaf = null;
+        let convergeRaf = null;
+        let voiceWaves = [];
+        let smoothedVolume = 0;
+        let convergeProgress = 1;
+        let isExpanding = false;
+
+        function easeOutCubic(t) {
+          return 1 - Math.pow(1 - t, 3);
+        }
+
+        function easeInOutCubic(t) {
+          return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        function smoothstep(edge0, edge1, x) {
+          const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+          return t * t * (3 - 2 * t);
+        }
+
+        function runGlowConverge(onComplete) {
+          if (convergeRaf) cancelAnimationFrame(convergeRaf);
+
+          isExpanding = false;
+          convergeProgress = 0;
+          const start = performance.now();
+
+          function tick(now) {
+            const elapsed = now - start;
+            convergeProgress = easeOutCubic(Math.min(1, elapsed / CONVERGE_MS));
+
+            if (elapsed < CONVERGE_MS) {
+              convergeRaf = requestAnimationFrame(tick);
+              return;
+            }
+
+            convergeProgress = 1;
+            convergeRaf = null;
+            chatArea.classList.remove("is-glow-converging");
+            if (onComplete) onComplete();
+          }
+
+          convergeRaf = requestAnimationFrame(tick);
+        }
+
+        function runGlowExpand(onComplete) {
+          if (convergeRaf) cancelAnimationFrame(convergeRaf);
+
+          isExpanding = true;
+          convergeProgress = 1;
+          chatArea.classList.add("is-glow-expanding");
+          chatArea.classList.remove("is-listening");
+          positionVoiceWave();
+
+          const start = performance.now();
+
+          function tick(now) {
+            const elapsed = now - start;
+            convergeProgress =
+              1 - easeInOutCubic(Math.min(1, elapsed / EXPAND_MS));
+
+            if (elapsed < EXPAND_MS) {
+              convergeRaf = requestAnimationFrame(tick);
+              return;
+            }
+
+            convergeProgress = 0;
+            convergeRaf = null;
+            isExpanding = false;
+            chatArea.classList.remove("is-glow-expanding");
+            if (onComplete) onComplete();
+          }
+
+          convergeRaf = requestAnimationFrame(tick);
+        }
+
+        function isVoiceWaveActive() {
+          return (
+            chatArea.classList.contains("is-listening") ||
+            chatArea.classList.contains("is-glow-converging") ||
+            isExpanding
+          );
+        }
+
+        function positionVoiceWave() {
+          if (!isVoiceWaveActive()) return;
+
+          const headingRect = heading.getBoundingClientRect();
+          const chatRect = chatArea.getBoundingClientRect();
+          const contentRect = content.getBoundingClientRect();
+          const headingBottom = headingRect.bottom - contentRect.top;
+          const chatTop = chatRect.top - contentRect.top;
+          const waveY =
+            headingBottom + (chatTop - headingBottom) * WAVE_POSITION_RATIO;
+
+          voiceWave.style.top = `${waveY}px`;
+        }
+
+        function createVoiceWaves() {
+          voiceWaves = Array.from({ length: 5 }, () => ({
+            freq: 0.006 + Math.random() * 0.014,
+            amp: 6 + Math.random() * 14,
+            phase: Math.random() * Math.PI * 2,
+            speed: 0.015 + Math.random() * 0.035,
+            opacity: 0.25 + Math.random() * 0.45,
+            harmonic: 1.4 + Math.random() * 1.8,
+          }));
+        }
+
+        function resizeVoiceGlowCanvas() {
+          const rect = voiceGlowCanvas.parentElement.getBoundingClientRect();
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const cssWidth = rect.width + GLOW_PAD.x * 2;
+          const cssHeight = rect.height + GLOW_PAD.y * 2;
+
+          voiceGlowCanvas.width = Math.max(1, Math.floor(cssWidth * dpr));
+          voiceGlowCanvas.height = Math.max(1, Math.floor(cssHeight * dpr));
+          voiceGlowCanvas.style.width = `${cssWidth}px`;
+          voiceGlowCanvas.style.height = `${cssHeight}px`;
+          voiceGlowCanvas.style.marginLeft = `${-GLOW_PAD.x}px`;
+          voiceGlowCanvas.style.marginTop = `${-GLOW_PAD.y}px`;
+        }
+
+        function getVolumeLevel() {
+          if (!analyser) return 0;
+
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(data);
+
+          let sum = 0;
+          const voiceBins = Math.floor(data.length * 0.45);
+          for (let i = 2; i < voiceBins; i += 1) {
+            sum += data[i];
+          }
+
+          const raw = sum / voiceBins / 255;
+          smoothedVolume += (raw - smoothedVolume) * 0.22;
+          return Math.min(1, smoothedVolume * 2.4);
+        }
+
+        function drawVoiceGlow(volume) {
+          const ctx = voiceGlowCanvas.getContext("2d");
+          const width = voiceGlowCanvas.width;
+          const height = voiceGlowCanvas.height;
+          const dpr = window.devicePixelRatio || 1;
+          const padX = GLOW_PAD.x * dpr;
+          const padY = GLOW_PAD.y * dpr;
+          const drawWidth = width - padX * 2;
+          const drawHeight = height - padY * 2;
+          const waveInset = (drawWidth * (1 - WAVE_WIDTH_RATIO)) / 2;
+          const waveStart = padX + waveInset;
+          const waveEnd = width - padX - waveInset;
+          const waveDrawWidth = waveEnd - waveStart;
+          const forming = smoothstep(0.55, 1, convergeProgress);
+          const baseY = padY + drawHeight * 0.5;
+          const loudBoost = 0.35 + volume * 0.65;
+          const quietFloor = 0.18;
+          const motionScale = prefersReducedMotion ? 0.35 : 1;
+
+          ctx.clearRect(0, 0, width, height);
+
+          if (forming <= 0.01) return;
+
+          const waveStrength = forming;
+
+          voiceWaves.forEach((wave) => {
+            wave.phase +=
+              wave.speed *
+              (quietFloor + volume * 2.8) *
+              motionScale *
+              (0.25 + waveStrength * 0.75);
+
+            ctx.beginPath();
+            for (let x = waveStart; x <= waveEnd; x += 2) {
+              const t = (x - waveStart) / waveDrawWidth;
+              const primary = Math.sin(x * wave.freq + wave.phase) * wave.amp;
+              const harmonic =
+                Math.sin(x * wave.freq * wave.harmonic + wave.phase * 1.6) *
+                wave.amp *
+                0.35 *
+                volume;
+              const displacement =
+                (primary + harmonic) *
+                (quietFloor + volume * 1.35) *
+                loudBoost *
+                waveStrength;
+              const edgeFade = Math.sin(t * Math.PI);
+              const y = baseY + displacement * edgeFade;
+
+              if (x === waveStart) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+
+            const gradient = ctx.createLinearGradient(waveStart, 0, waveEnd, 0);
+            const alpha = wave.opacity * loudBoost * waveStrength;
+            gradient.addColorStop(0, `rgba(92, 81, 255, 0)`);
+            gradient.addColorStop(0.14, `rgba(110, 98, 255, ${alpha * 0.45})`);
+            gradient.addColorStop(0.5, `rgba(143, 133, 255, ${alpha})`);
+            gradient.addColorStop(0.86, `rgba(110, 98, 255, ${alpha * 0.45})`);
+            gradient.addColorStop(1, `rgba(92, 81, 255, 0)`);
+
+            ctx.save();
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth =
+              (1.2 + volume * 4.5) * dpr * (0.35 + waveStrength * 0.65);
+            ctx.shadowBlur = (8 + volume * 24) * dpr * waveStrength;
+            ctx.shadowColor = `rgba(110, 98, 255, ${(0.35 + volume * 0.45) * waveStrength})`;
+            ctx.stroke();
+            ctx.restore();
+          });
+        }
+
+        function animateVoiceGlow() {
+          if (!isListening && !isExpanding) return;
+
+          const volume = isListening ? getVolumeLevel() : 0;
+          drawVoiceGlow(volume);
+          glowRaf = requestAnimationFrame(animateVoiceGlow);
+        }
+
+        async function startListening() {
+          try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+            });
+            audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 512;
+            analyser.smoothingTimeConstant = 0.82;
+            source.connect(analyser);
+
+            if (audioContext.state === "suspended") {
+              await audioContext.resume();
+            }
+
+            isListening = true;
+            smoothedVolume = 0;
+            createVoiceWaves();
+            resizeVoiceGlowCanvas();
+            positionVoiceWave();
+            requestAnimationFrame(positionVoiceWave);
+            chatArea.classList.remove("is-glow-expanding");
+            chatArea.classList.add(
+              "glow-settled",
+              "is-listening",
+              "is-glow-converging",
+            );
+            micBtn.classList.add("is-recording");
+            micBtn.setAttribute("aria-label", "Stop voice recording");
+            micBtn.setAttribute("aria-pressed", "true");
+            runGlowConverge();
+            animateVoiceGlow();
+          } catch (error) {
+            console.error("Microphone access failed:", error);
+          }
+        }
+
+        function stopListening() {
+          isListening = false;
+          micBtn.classList.remove("is-recording");
+          micBtn.setAttribute("aria-label", "Start voice recording");
+          micBtn.setAttribute("aria-pressed", "false");
+
+          runGlowExpand(() => {
+            if (glowRaf) {
+              cancelAnimationFrame(glowRaf);
+              glowRaf = null;
+            }
+
+            const ctx = voiceGlowCanvas.getContext("2d");
+            ctx.clearRect(0, 0, voiceGlowCanvas.width, voiceGlowCanvas.height);
+          });
+
+          if (mediaStream) {
+            mediaStream.getTracks().forEach((track) => track.stop());
+            mediaStream = null;
+          }
+
+          if (audioContext) {
+            audioContext.close();
+            audioContext = null;
+          }
+
+          analyser = null;
+          smoothedVolume = 0;
+          animateVoiceGlow();
+        }
+
+        function handleMicClick() {
+          if (isListening) {
+            stopListening();
+          } else {
+            startListening();
+          }
+        }
+
+        function handleResize() {
+          if (isVoiceWaveActive()) {
+            positionVoiceWave();
+            resizeVoiceGlowCanvas();
+          }
+        }
+
+        function initLayoutObserver() {
+          if (!window.ResizeObserver) return;
+
+          const layoutObserver = new ResizeObserver(() => {
+            if (isVoiceWaveActive()) positionVoiceWave();
+          });
+          layoutObserver.observe(heading);
+          layoutObserver.observe(chatArea);
+          layoutObserver.observe(content);
+        }
+
+        /* ---------- Event bindings & init ---------- */
+
+        function initAgent() {
+          input.addEventListener("input", handleInput);
+          input.addEventListener("keydown", handleKeydown);
+          input.addEventListener("focus", updatePlaceholderVisibility);
+          input.addEventListener("blur", () => {
+            updatePlaceholderVisibility();
+            handleChatInputBlur();
+          });
+          chatForm.addEventListener("submit", handleSubmit);
+          micBtn.addEventListener("click", handleMicClick);
+          historyToggle.addEventListener("click", toggleHistoryPanel);
+          newChatBtn.addEventListener("click", startNewChat);
+          historyBackdrop.addEventListener("click", closeHistoryPanel);
+          historyList.addEventListener("click", handleHistoryListClick);
+          document.addEventListener("keydown", handleHistoryKeydown);
+          window.addEventListener("resize", handleResize);
+
+          applyLayoutFromQuery();
+          renderHistoryList();
+          scheduleTypingTick(500);
+          initLayoutObserver();
+          initScopeBar();
+          initEmbeddedEscape();
+        }
+
+        /* Hosts embed this page in a frame and pick a fit: demo 2's drawer is
+           narrower than demo 1's modal, so it asks for the compact chat box. */
+        function applyLayoutFromQuery() {
+          const layout = new URLSearchParams(window.location.search).get(
+            "layout",
+          );
+          if (layout === "compact") page.classList.add("is-compact");
+
+          // In a frame the viewport units resolve a little taller than the
+          // frame itself, which leaves the document scrolling behind the
+          // panel. The message list does its own scrolling, so pin the page
+          // to the frame.
+          if (window.parent !== window) {
+            document.documentElement.classList.add("is-embedded");
+          }
+        }
+
+        /*
+         * Escape unwinds one layer at a time, and the outermost layer is the
+         * host's panel — which cannot see key events inside this frame, so it
+         * is told over postMessage.
+         *
+         * Capture, and registered after the scope bar's own capture handler:
+         * that one stops the event dead while its menu is open, and the
+         * history panel is closed by a bubble handler further down, so both
+         * inner layers get their turn before the frame closes.
+         */
+        function initEmbeddedEscape() {
+          if (window.parent === window) return;
+
+          document.addEventListener(
+            "keydown",
+            (event) => {
+              if (event.key !== "Escape" || isHistoryOpen) return;
+              window.parent.postMessage("mada:close", "*");
+            },
+            true,
+          );
+        }
+
+        /* ---------- Scope bar ---------- */
+
+        const SCOPE_ICONS = {
+          folder:
+            "M3.5 6.5a2 2 0 0 1 2-2h3.4l1.8 2h7.8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z",
+          building:
+            "M4 20V5.5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 14 5.5V20M14 10h4.5A1.5 1.5 0 0 1 20 11.5V20M2.5 20h19M7 8h4M7 12h4M7 16h4M17 14h1M17 17h1",
+          calendar:
+            "M4.5 7.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2zM4.5 10h15M9 3.5v4M15 3.5v4",
+        };
+
+        const SCOPE_PICKERS = [
+          {
+            id: "level",
+            icon: "folder",
+            searchLabel: "Search levels",
+            emptyLabel: "No level matches that.",
+            selected: "Building Level",
+            options: [
+              { name: "All Levels", meta: "everything" },
+              { name: "Building Level", meta: "per building" },
+              { name: "Floor Level", meta: "per floor" },
+              { name: "Zone Level", meta: "per zone" },
+              { name: "Room Level", meta: "per room" },
+              { name: "Asset Level", meta: "per device" },
+            ],
+          },
+          {
+            id: "site",
+            icon: "building",
+            searchLabel: "Search sites",
+            emptyLabel: "No site matches that.",
+            selected: "Riyadh HQ",
+            options: [
+              { name: "All Sites", meta: "portfolio" },
+              { name: "Riyadh HQ", meta: "12 floors" },
+              { name: "Jeddah Tower", meta: "28 floors" },
+              { name: "Dammam Plant", meta: "4 blocks" },
+              { name: "Neom Campus", meta: "6 buildings" },
+            ],
+          },
+          {
+            id: "period",
+            icon: "calendar",
+            searchLabel: "Search ranges",
+            emptyLabel: "No range matches that.",
+            selected: "Last 30 days",
+            options: [
+              { name: "Today", meta: "live" },
+              { name: "Last 7 days", meta: "week" },
+              { name: "Last 30 days", meta: "month" },
+              { name: "Last quarter", meta: "90 days" },
+              { name: "Year to date", meta: "2026" },
+            ],
+          },
+        ];
+
+        let scopeIsOpen = false;
+
+        function initScopeBar() {
+          const bar = document.getElementById("scope-bar");
+          if (!bar) return;
+
+          const icon = (name, cls) =>
+            `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${SCOPE_ICONS[name]}"/></svg>`;
+
+          /*
+           * One menu for all three selectors, parked on <body>. It has to live
+           * outside .chat-area: that element opens a stacking context below the
+           * heading and clips its overflow once the chat is active, so a menu
+           * nested inside it renders behind the page and gets cut off.
+           */
+          const menu = document.createElement("div");
+          menu.className = "scope__menu";
+          menu.id = "scope-menu";
+          menu.hidden = true;
+          menu.innerHTML = `
+            <div class="scope__search">
+              <svg class="scope__search-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>
+              </svg>
+              <input type="text" class="scope__search-input" autocomplete="off" />
+            </div>
+            <ul class="scope__list" role="listbox"></ul>
+            <p class="scope__empty" hidden></p>`;
+          document.body.appendChild(menu);
+
+          const search = menu.querySelector(".scope__search-input");
+          const list = menu.querySelector(".scope__list");
+          const empty = menu.querySelector(".scope__empty");
+
+          let current = null;
+          let activeIndex = 0;
+          let shown = [];
+
+          const render = () => {
+            const q = search.value.trim().toLowerCase();
+            shown = current.options.filter((o) =>
+              `${o.name} ${o.meta}`.toLowerCase().includes(q),
+            );
+
+            list.replaceChildren(
+              ...shown.map((option, i) => {
+                const li = document.createElement("li");
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "scope__option";
+                btn.setAttribute("role", "option");
+                btn.setAttribute(
+                  "aria-selected",
+                  String(option.name === current.selected),
+                );
+                if (i === activeIndex) btn.classList.add("is-active");
+                btn.innerHTML = `${icon(current.icon, "scope__option-icon")}
+                  <span class="scope__option-name"></span>
+                  <span class="scope__option-meta"></span>`;
+                btn.querySelector(".scope__option-name").textContent =
+                  option.name;
+                btn.querySelector(".scope__option-meta").textContent =
+                  option.meta;
+                btn.addEventListener("click", () => choose(option.name));
+                li.append(btn);
+                return li;
+              }),
+            );
+
+            empty.hidden = shown.length > 0;
+            empty.textContent = current.emptyLabel;
+          };
+
+          // Fixed positioning, so the coordinates are written each time it opens.
+          const place = () => {
+            const rect = current.button.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+
+            // In a short embed there may not be room for the full list above
+            // the bar. Cap the menu so the search field stays on screen and
+            // let the list take whatever height is left.
+            menu.style.maxHeight = `${Math.max(120, rect.top - 16)}px`;
+
+            const spill = menu.getBoundingClientRect().right - window.innerWidth + 8;
+            if (spill > 0) menu.style.left = `${Math.max(8, rect.left - spill)}px`;
+          };
+
+          const open = (picker) => {
+            current = picker;
+            scopeIsOpen = true;
+            activeIndex = Math.max(
+              0,
+              picker.options.findIndex((o) => o.name === picker.selected),
+            );
+            search.value = "";
+            search.placeholder = picker.searchLabel;
+            search.setAttribute("aria-label", picker.searchLabel);
+            render();
+            menu.hidden = false;
+            place();
+            for (const p of SCOPE_PICKERS) {
+              p.button.setAttribute("aria-expanded", String(p === picker));
+            }
+            search.focus();
+          };
+
+          const close = ({ refocus = false } = {}) => {
+            if (!scopeIsOpen) return;
+            const button = current?.button;
+            scopeIsOpen = false;
+            menu.hidden = true;
+            for (const p of SCOPE_PICKERS) {
+              p.button.setAttribute("aria-expanded", "false");
+            }
+            if (refocus) button?.focus();
+          };
+
+          const choose = (name) => {
+            current.selected = name;
+            current.label.textContent = name;
+            close({ refocus: true });
+          };
+
+          const moveActive = (step) => {
+            if (!shown.length) return;
+            activeIndex = (activeIndex + step + shown.length) % shown.length;
+            render();
+            list.children[activeIndex]?.firstElementChild?.scrollIntoView({
+              block: "nearest",
+            });
+          };
+
+          for (const picker of SCOPE_PICKERS) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "scope__item";
+            button.setAttribute("aria-haspopup", "listbox");
+            button.setAttribute("aria-expanded", "false");
+            button.setAttribute("aria-controls", "scope-menu");
+            button.innerHTML = `${icon(picker.icon, "scope__item-icon")}<span class="scope__item-label"></span>`;
+            const label = button.querySelector(".scope__item-label");
+            label.textContent = picker.selected;
+
+            picker.button = button;
+            picker.label = label;
+
+            button.addEventListener("click", () => {
+              if (scopeIsOpen && current === picker) close();
+              else open(picker);
+            });
+
+            bar.append(button);
+          }
+
+          search.addEventListener("input", () => {
+            activeIndex = 0;
+            render();
+          });
+
+          menu.addEventListener("keydown", (event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              moveActive(1);
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              moveActive(-1);
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              if (shown[activeIndex]) choose(shown[activeIndex].name);
+            }
+          });
+
+          // Capture, and stopImmediate: the other Escape handlers sit on this
+          // same node, so plain stopPropagation would not hold them back.
+          document.addEventListener(
+            "keydown",
+            (event) => {
+              if (event.key === "Escape" && scopeIsOpen) {
+                event.stopImmediatePropagation();
+                close({ refocus: true });
+              }
+            },
+            true,
+          );
+
+          document.addEventListener("pointerdown", (event) => {
+            if (!scopeIsOpen) return;
+            const onTrigger = SCOPE_PICKERS.some((p) =>
+              p.button.contains(event.target),
+            );
+            if (!menu.contains(event.target) && !onTrigger) close();
+          });
+
+          window.addEventListener("resize", () => {
+            if (scopeIsOpen) place();
+          });
+        }
+
+        /* ==============================================================
+           Router
+
+           The demos frame this same file at #/agent, so the agent still
+           gets its own document — and demo 2 asks for the compact fit in
+           the query the way it always did.
+           ============================================================== */
+        const ROUTES = {
+          gallery: { title: "MADA Agent — Concepts", view: "view-gallery" },
+          "demo-1": {
+            title: "MADA — Overview",
+            view: "view-demo",
+            modal: true,
+            agent: "#/agent",
+            aim: aimAtFab,
+          },
+          "demo-2": {
+            title: "MADA — Overview",
+            view: "view-demo",
+            modal: false,
+            agent: "?layout=compact#/agent",
+          },
+          agent: { title: "MADA Agent", view: "view-agent" },
+        };
+
+        const root = document.documentElement;
+        const views = ["view-gallery", "view-demo", "view-agent"].map((id) =>
+          document.getElementById(id),
+        );
+        const launcher = createAgentLauncher();
+
+        const routeFromHash = () => {
+          const name = (location.hash || "").replace(/^#\/?/, "");
+          return ROUTES[name] ? name : "gallery";
+        };
+
+        let current = null;
+        let agentStarted = false;
+
+        function render() {
+          const name = routeFromHash();
+          if (name === current) return;
+          current = name;
+
+          const route = ROUTES[name];
+
+          root.dataset.view = name;
+          document.title = route.title;
+
+          // Show the view first: demo 1 measures the panel, and the agent
+          // measures its own layout — neither has a size until it is laid
+          // out.
+          for (const view of views) view.hidden = view.id !== route.view;
+
+          if (route.view === "view-demo") launcher.configure(route);
+          else launcher.reset();
+
+          // The agent binds once and then keeps its session; leaving the
+          // route only hides it.
+          if (name === "agent" && !agentStarted) {
+            agentStarted = true;
+            initAgent();
+          }
+
+          window.scrollTo(0, 0);
+        }
+
+        window.addEventListener("hashchange", render);
+        render();
+      })();
+    </script>
   </body>
 </html>
