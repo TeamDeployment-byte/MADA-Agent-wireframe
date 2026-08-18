@@ -1,0 +1,501 @@
+:root {
+  --bg: #000000;
+  --brand: #5c51ff;
+  --brand-dark: #1a1748;
+  --brand-deep: #12102e;
+  --brand-mid: #2e2878;
+  --brand-glow: #8f85ff;
+  --brand-soft: #6e62ff;
+
+  --ink: #f4f4f5;
+  --ink-dim: rgba(255, 255, 255, 0.52);
+  --ink-faint: rgba(255, 255, 255, 0.34);
+  --hairline: rgba(255, 255, 255, 0.09);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --shell-width: min(64rem, 100%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  min-height: 100dvh;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Field: the light the whole page sits in ---------- */
+
+/*
+ * The whole field fades in as one atmosphere. Load motion lives here and
+ * nowhere else, so the layers below are free to transition opacity and
+ * transform on hover without an animation fill-state overriding them.
+ */
+.field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg);
+  opacity: 0;
+  animation: field-in 1.7s var(--ease) 0.15s forwards;
+}
+
+/*
+ * Same radial recipe as the chat glow in the demo, anchored low so the
+ * page reads as one continuous light source with the tiles above it.
+ */
+.field__ambient {
+  position: absolute;
+  left: 50%;
+  bottom: -34vh;
+  width: min(120rem, 190%);
+  height: 92vh;
+  transform: translateX(-50%);
+  opacity: 0.42;
+  background: radial-gradient(
+    ellipse 62% 60% at 50% 50%,
+    color-mix(in srgb, var(--brand-mid) 78%, var(--brand)) 0%,
+    color-mix(in srgb, var(--brand-dark) 72%, transparent) 22%,
+    color-mix(in srgb, var(--brand-deep) 48%, transparent) 42%,
+    transparent 82%
+  );
+  filter: blur(76px);
+  transition:
+    opacity 0.9s var(--ease),
+    transform 1.2s var(--ease);
+  will-change: opacity, transform;
+}
+
+.field__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.26;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+}
+
+/* The lit tile feeds the room: hovering or focusing it raises the ambient. */
+body:has(.concept--lit .concept__face:hover) .field__ambient,
+body:has(.concept--lit .concept__face:focus-visible) .field__ambient {
+  opacity: 0.54;
+  transform: translateX(-50%) translateY(-2vh) scale(1.03);
+}
+
+@keyframes field-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Opacity only — transform and filter stay free for the hover swell. */
+@keyframes ignite {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- Shell ---------- */
+
+.shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(3rem, 9vh, 6rem);
+  padding: clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 5vw, 3rem)
+    clamp(1.5rem, 4vw, 2.5rem);
+}
+
+/* ---------- Top rail ---------- */
+
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: var(--shell-width);
+  margin: 0 auto;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--hairline);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  animation: rise 0.7s var(--ease) 0.1s both;
+}
+
+.rail__mark {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.rail__rule {
+  width: 1.25rem;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.rail__label {
+  color: var(--ink-faint);
+}
+
+.rail__count {
+  margin-left: auto;
+  color: var(--ink-faint);
+}
+
+/* ---------- Intro ---------- */
+
+.stage {
+  width: var(--shell-width);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 7vh, 4.5rem);
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 38rem;
+}
+
+.eyebrow {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brand-glow);
+  animation: rise 0.8s var(--ease) 0.18s both;
+}
+
+.title {
+  font-family: "Bricolage Grotesque", Inter, sans-serif;
+  font-weight: 700;
+  font-size: clamp(2.75rem, 8vw, 5.25rem);
+  line-height: 0.92;
+  letter-spacing: -0.045em;
+  color: var(--ink);
+  animation: rise 0.9s var(--ease) 0.24s both;
+}
+
+.lede {
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  max-width: 30rem;
+  animation: rise 0.9s var(--ease) 0.32s both;
+}
+
+/* ---------- Concepts ---------- */
+
+.concepts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.concept {
+  animation: rise 0.9s var(--ease) both;
+}
+
+.concept--lit {
+  animation-delay: 0.42s;
+}
+
+.concept--unlit {
+  animation-delay: 0.52s;
+}
+
+.concept__face {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "meta meta"
+    "body body"
+    "cta cta";
+  gap: 1.5rem 2rem;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(1.5rem, 3.5vw, 2.25rem);
+  min-height: clamp(15rem, 30vh, 18rem);
+  border-radius: 1.75rem;
+  border: 1px solid var(--hairline);
+  background: rgba(20, 20, 24, 0.62);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.5s var(--ease),
+    background-color 0.5s var(--ease),
+    transform 0.5s var(--ease);
+}
+
+/* Glow rises from the bottom edge, the way it sits behind the chat box. */
+.concept__glow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: -1;
+  width: 118%;
+  height: 150%;
+  transform: translate(-50%, 34%);
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 54% 48% at 50% 50%,
+    color-mix(in srgb, var(--brand-mid) 92%, var(--brand)) 0%,
+    color-mix(in srgb, var(--brand-dark) 80%, transparent) 24%,
+    color-mix(in srgb, var(--brand-deep) 52%, transparent) 44%,
+    transparent 78%
+  );
+  filter: blur(52px);
+  animation: ignite 1.4s var(--ease) 0.6s both;
+  transition:
+    transform 0.75s var(--ease),
+    filter 0.75s var(--ease);
+  will-change: transform, filter;
+}
+
+.concept__glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 46% 40% at 50% 50%,
+    color-mix(in srgb, var(--brand-soft) 34%, transparent) 0%,
+    transparent 76%
+  );
+  filter: blur(34px);
+}
+
+.concept--lit .concept__face:hover,
+.concept--lit .concept__face:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-glow) 34%, transparent);
+  background: rgba(24, 22, 38, 0.68);
+  transform: translateY(-2px);
+}
+
+.concept--lit .concept__face:hover .concept__glow,
+.concept--lit .concept__face:focus-visible .concept__glow {
+  transform: translate(-50%, 25%) scale(1.06);
+  filter: blur(46px);
+}
+
+.concept--lit .concept__face:focus-visible {
+  outline: 2px solid var(--brand-glow);
+  outline-offset: 3px;
+}
+
+.concept--unlit .concept__face {
+  background: transparent;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.14);
+  cursor: default;
+}
+
+.concept__meta {
+  grid-area: meta;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.concept__index {
+  color: var(--ink-faint);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status__dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+}
+
+.status--live {
+  color: var(--brand-glow);
+}
+
+.status--live .status__dot {
+  background: var(--brand-glow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-glow) 18%, transparent);
+}
+
+.status--pending {
+  color: var(--ink-faint);
+}
+
+.status--pending .status__dot {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.concept__body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  align-self: end;
+  max-width: 30rem;
+}
+
+.concept__name {
+  font-family: "Bricolage Grotesque", Inter, sans-serif;
+  font-weight: 600;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.concept--unlit .concept__name {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.concept__desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.concept--unlit .concept__desc {
+  color: var(--ink-faint);
+}
+
+.concept__cta {
+  grid-area: cta;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.concept__cta svg {
+  width: 1.0625rem;
+  height: 1.0625rem;
+  transition: transform 0.4s var(--ease);
+}
+
+.concept--lit .concept__face:hover .concept__cta svg,
+.concept--lit .concept__face:focus-visible .concept__cta svg {
+  transform: translateX(0.3rem);
+}
+
+.concept__cta--inert {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ---------- Foot ---------- */
+
+.foot {
+  display: flex;
+  gap: 0.75rem;
+  width: var(--shell-width);
+  margin: auto auto 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hairline);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  animation: rise 0.8s var(--ease) 0.6s both;
+}
+
+.foot__dim {
+  margin-left: auto;
+}
+
+/* ---------- Wide: meta and cta share a row with the body ---------- */
+
+@media (min-width: 48rem) {
+  .concept__face {
+    grid-template-areas:
+      "meta meta"
+      "body cta";
+    align-items: end;
+  }
+
+  .concept__cta {
+    grid-area: cta;
+    justify-self: end;
+    align-self: end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field__ambient,
+  .field__grain,
+  .rail,
+  .eyebrow,
+  .title,
+  .lede,
+  .concept,
+  .concept__glow,
+  .field {
+    animation: none;
+  }
+
+  .field,
+  .concept__glow {
+    opacity: 1;
+  }
+
+  .concept__glow,
+  .concept__face,
+  .concept__cta svg {
+    transition: none;
+  }
+}

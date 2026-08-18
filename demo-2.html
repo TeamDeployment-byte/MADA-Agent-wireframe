@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MADA — Overview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="demo-2.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- ---------- Side navigation ---------- -->
+      <nav class="sidenav" aria-label="Sections">
+        <div class="sidenav__brand">
+          <span class="sidenav__mark" aria-hidden="true"></span>
+          <span class="sidenav__wordmark">MADA</span>
+        </div>
+
+        <ul class="navskel" aria-hidden="true">
+          <li class="navskel__row is-current">
+            <span class="sk sk--icon"></span>
+            <span class="sk sk--text" style="width: 58%"></span>
+          </li>
+          <li class="navskel__row">
+            <span class="sk sk--icon"></span>
+            <span class="sk sk--text" style="width: 45%"></span>
+          </li>
+          <li class="navskel__row">
+            <span class="sk sk--icon"></span>
+            <span class="sk sk--text" style="width: 62%"></span>
+          </li>
+          <li class="navskel__row">
+            <span class="sk sk--icon"></span>
+            <span class="sk sk--text" style="width: 40%"></span>
+          </li>
+          <li class="navskel__row">
+            <span class="sk sk--icon"></span>
+            <span class="sk sk--text" style="width: 52%"></span>
+          </li>
+        </ul>
+
+        <div class="sidenav__foot" aria-hidden="true">
+          <div class="account-skel">
+            <span class="sk sk--avatar"></span>
+            <span class="account-skel__lines">
+              <span class="sk sk--text" style="width: 70%"></span>
+              <span class="sk sk--text sk--sm" style="width: 45%"></span>
+            </span>
+          </div>
+        </div>
+      </nav>
+
+      <!-- ---------- Main ---------- -->
+      <main class="main">
+        <h1 class="sr-only">Overview</h1>
+        <p class="sr-only" role="status">
+          Dashboard placeholder. This concept demonstrates the MADA agent
+          launcher, so the widgets stay in their loading state.
+        </p>
+
+        <div class="board" aria-hidden="true">
+          <header class="topbar">
+            <div class="topbar__titles">
+              <span class="sk sk--text sk--sm" style="width: 5.5rem"></span>
+              <span class="sk sk--title"></span>
+            </div>
+            <div class="topbar__tools">
+              <span class="sk sk--control"></span>
+              <span class="sk sk--text sk--sm" style="width: 6rem"></span>
+            </div>
+          </header>
+
+          <!-- Stat tiles -->
+          <section class="tiles">
+            <article class="widget tile">
+              <span class="sk sk--text sk--sm" style="width: 42%"></span>
+              <span class="sk sk--value"></span>
+              <span class="sk sk--text sk--sm" style="width: 60%"></span>
+              <span class="sk sk--spark"></span>
+            </article>
+            <article class="widget tile">
+              <span class="sk sk--text sk--sm" style="width: 55%"></span>
+              <span class="sk sk--value"></span>
+              <span class="sk sk--text sk--sm" style="width: 48%"></span>
+              <span class="sk sk--spark"></span>
+            </article>
+            <article class="widget tile">
+              <span class="sk sk--text sk--sm" style="width: 36%"></span>
+              <span class="sk sk--value"></span>
+              <span class="sk sk--text sk--sm" style="width: 64%"></span>
+              <span class="sk sk--spark"></span>
+            </article>
+            <article class="widget tile">
+              <span class="sk sk--text sk--sm" style="width: 60%"></span>
+              <span class="sk sk--value"></span>
+              <span class="sk sk--text sk--sm" style="width: 40%"></span>
+              <span class="sk sk--spark"></span>
+            </article>
+          </section>
+
+          <!-- Charts -->
+          <section class="charts">
+            <article class="widget">
+              <div class="widget__head">
+                <span class="sk sk--text" style="width: 9rem"></span>
+                <span class="sk sk--text sk--sm" style="width: 5rem"></span>
+              </div>
+              <!-- Column chart skeleton -->
+              <div class="plot plot--columns">
+                <span class="sk sk--col" style="height: 46%"></span>
+                <span class="sk sk--col" style="height: 62%"></span>
+                <span class="sk sk--col" style="height: 38%"></span>
+                <span class="sk sk--col" style="height: 71%"></span>
+                <span class="sk sk--col" style="height: 55%"></span>
+                <span class="sk sk--col" style="height: 84%"></span>
+                <span class="sk sk--col" style="height: 49%"></span>
+                <span class="sk sk--col" style="height: 66%"></span>
+                <span class="sk sk--col" style="height: 92%"></span>
+                <span class="sk sk--col" style="height: 58%"></span>
+                <span class="sk sk--col" style="height: 74%"></span>
+                <span class="sk sk--col" style="height: 44%"></span>
+              </div>
+              <div class="plot__axis">
+                <span class="sk sk--text sk--sm" style="width: 2rem"></span>
+                <span class="sk sk--text sk--sm" style="width: 2rem"></span>
+                <span class="sk sk--text sk--sm" style="width: 2rem"></span>
+              </div>
+            </article>
+
+            <article class="widget">
+              <div class="widget__head">
+                <span class="sk sk--text" style="width: 7.5rem"></span>
+              </div>
+              <!-- Bar list skeleton -->
+              <div class="plot plot--bars">
+                <div class="barrow">
+                  <span class="sk sk--text sk--sm" style="width: 3.5rem"></span>
+                  <span class="sk sk--bar" style="width: 86%"></span>
+                </div>
+                <div class="barrow">
+                  <span class="sk sk--text sk--sm" style="width: 3rem"></span>
+                  <span class="sk sk--bar" style="width: 54%"></span>
+                </div>
+                <div class="barrow">
+                  <span class="sk sk--text sk--sm" style="width: 4.5rem"></span>
+                  <span class="sk sk--bar" style="width: 31%"></span>
+                </div>
+                <div class="barrow">
+                  <span class="sk sk--text sk--sm" style="width: 3.25rem"></span>
+                  <span class="sk sk--bar" style="width: 18%"></span>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <!-- Table -->
+          <section class="widget">
+            <div class="widget__head">
+              <span class="sk sk--text" style="width: 10rem"></span>
+            </div>
+            <div class="rows">
+              <div class="row row--head">
+                <span class="sk sk--text sk--sm" style="width: 4rem"></span>
+                <span class="sk sk--text sk--sm" style="width: 3.5rem"></span>
+                <span class="sk sk--text sk--sm" style="width: 3rem"></span>
+                <span class="sk sk--text sk--sm" style="width: 3.5rem"></span>
+              </div>
+              <div class="row">
+                <span class="sk sk--text" style="width: 78%"></span>
+                <span class="sk sk--text" style="width: 55%"></span>
+                <span class="sk sk--chip"></span>
+                <span class="sk sk--text" style="width: 48%"></span>
+              </div>
+              <div class="row">
+                <span class="sk sk--text" style="width: 64%"></span>
+                <span class="sk sk--text" style="width: 42%"></span>
+                <span class="sk sk--chip"></span>
+                <span class="sk sk--text" style="width: 60%"></span>
+              </div>
+              <div class="row">
+                <span class="sk sk--text" style="width: 85%"></span>
+                <span class="sk sk--text" style="width: 61%"></span>
+                <span class="sk sk--chip"></span>
+                <span class="sk sk--text" style="width: 38%"></span>
+              </div>
+              <div class="row">
+                <span class="sk sk--text" style="width: 58%"></span>
+                <span class="sk sk--text" style="width: 47%"></span>
+                <span class="sk sk--chip"></span>
+                <span class="sk sk--text" style="width: 52%"></span>
+              </div>
+              <div class="row">
+                <span class="sk sk--text" style="width: 72%"></span>
+                <span class="sk sk--text" style="width: 36%"></span>
+                <span class="sk sk--chip"></span>
+                <span class="sk sk--text" style="width: 44%"></span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- ---------- Agent launcher ---------- -->
+    <button
+      type="button"
+      id="agent-fab"
+      class="fab"
+      aria-label="Ask MADA"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+    >
+      <svg class="fab__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 3.2 13.9 9a3.2 3.2 0 0 0 2.1 2.1l5.8 1.9-5.8 1.9A3.2 3.2 0 0 0 13.9 17L12 22.8 10.1 17A3.2 3.2 0 0 0 8 14.9L2.2 13 8 11.1A3.2 3.2 0 0 0 10.1 9z"
+        />
+      </svg>
+      <span class="fab__label">Ask MADA</span>
+    </button>
+
+    <!-- ---------- Agent modal ---------- -->
+    <div id="agent-overlay" class="overlay" inert>
+      <div class="overlay__scrim" id="agent-scrim"></div>
+
+      <div
+        id="agent-modal"
+        class="agent"
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="agent-modal-title"
+      >
+        <div class="agent__chrome">
+          <h2 class="agent__title" id="agent-modal-title">MADA</h2>
+          <button
+            type="button"
+            id="agent-close"
+            class="agent__close"
+            aria-label="Close MADA"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div class="agent__frame">
+          <iframe
+            id="agent-iframe"
+            class="agent__iframe"
+            title="MADA agent"
+            data-src="index.html?layout=compact"
+          ></iframe>
+        </div>
+      </div>
+    </div>
+
+    <script src="agent-launcher.js" defer></script>
+    <script src="demo-2.js" defer></script>
+  </body>
+</html>
